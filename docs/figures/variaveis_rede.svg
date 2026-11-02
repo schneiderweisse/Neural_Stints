@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 690" width="1120" height="690" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Como as variáveis entram na rede</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5B6573"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font-size: 22px; font-weight: 700; fill: #1B2430; }
+    .subtitle { font-size: 13.5px; fill: #5B6573; }
+    .card-title { font-size: 15px; font-weight: 700; fill: #1B2430; }
+    .item { font-size: 13px; fill: #1B2430; }
+    .label { font-size: 12px; fill: #5B6573; }
+    .net-title { font-size: 16px; font-weight: 700; fill: #FFFFFF; }
+    .net-sub { font-size: 12.5px; fill: #D5DAE1; }
+    .edge { stroke: #5B6573; stroke-width: 1.6; fill: none; }
+    .lap { font-size: 13px; font-weight: 700; fill: #1B2430; text-anchor: middle; }
+  </style>
+
+  <rect x="0" y="0" width="1120" height="690" rx="14" fill="#FFFFFF"/>
+
+  <text x="40" y="44" class="title">Como as variáveis entram na rede</text>
+  <text x="40" y="68" class="subtitle">Previsão feita ao fim da volta t para as próximas H voltas de um piloto. As cores indicam o grupo de cada variável.</text>
+
+  <!-- Coluna 1: grupos de variáveis -->
+  <rect x="40" y="100" width="340" height="120" rx="10" fill="#F1EAFB" stroke="#7B4FC9" stroke-width="1.4"/>
+  <text x="56" y="126" class="card-title">Estáticas (por piloto e corrida)</text>
+  <text x="56" y="146" class="item">• circuito, piloto, equipe-ano</text>
+  <text x="56" y="166" class="item">• regulamento (2022–25 ou 2026)</text>
+  <text x="56" y="186" class="item">• especificação do pneu × composto</text>
+  <text x="56" y="206" class="item">• dureza do composto (C1–C6)</text>
+
+  <rect x="40" y="238" width="340" height="160" rx="10" fill="#E8F0FE" stroke="#3B6FD8" stroke-width="1.4"/>
+  <text x="56" y="264" class="card-title">Observadas (voltas 1…t)</text>
+  <text x="56" y="284" class="item">• ritmo relativo da volta</text>
+  <text x="56" y="304" class="item">• tempos de setor (s1, s2, s3)</text>
+  <text x="56" y="324" class="item">• speed traps (i1, i2, st)</text>
+  <text x="56" y="344" class="item">• gap ao carro da frente e posição</text>
+  <text x="56" y="364" class="item">• temperatura da pista e do ar, umidade</text>
+  <text x="56" y="384" class="item">• máscara de volta limpa (SC/VSC, in/out)</text>
+
+  <rect x="40" y="418" width="340" height="100" rx="10" fill="#FFF1E0" stroke="#D9822B" stroke-width="1.4"/>
+  <text x="56" y="444" class="card-title">Conhecidas no futuro (voltas 1…t+H)</text>
+  <text x="56" y="464" class="item">• volta e voltas restantes (combustível)</text>
+  <text x="56" y="484" class="item">• idade do pneu, pneu novo ou usado</text>
+  <text x="56" y="504" class="item">• composto e número do stint</text>
+
+  <!-- Coluna 2: rede -->
+  <rect x="480" y="125" width="220" height="70" rx="10" fill="#F1EAFB" stroke="#7B4FC9" stroke-width="1.4"/>
+  <text x="590" y="155" class="card-title" text-anchor="middle">Embeddings</text>
+  <text x="590" y="177" class="item" text-anchor="middle">vetor de contexto</text>
+
+  <rect x="480" y="273" width="220" height="90" rx="10" fill="#1B2430"/>
+  <text x="590" y="304" class="net-title" text-anchor="middle">Encoder</text>
+  <text x="590" y="325" class="net-sub" text-anchor="middle">GRU / LSTM</text>
+  <text x="590" y="345" class="net-sub" text-anchor="middle">lê as voltas 1…t</text>
+
+  <rect x="480" y="423" width="220" height="90" rx="10" fill="#1B2430"/>
+  <text x="590" y="454" class="net-title" text-anchor="middle">Decoder</text>
+  <text x="590" y="475" class="net-sub" text-anchor="middle">GRU / LSTM</text>
+  <text x="590" y="495" class="net-sub" text-anchor="middle">gera as voltas t+1…t+H</text>
+
+  <!-- Arestas coluna 1 -> coluna 2 -->
+  <path d="M380,160 L478,160" class="edge" marker-end="url(#arrow)"/>
+  <path d="M380,318 L478,318" class="edge" marker-end="url(#arrow)"/>
+  <text x="429" y="309" class="label" text-anchor="middle">a cada volta</text>
+  <path d="M380,440 L440,440 L440,348 L478,348" class="edge" marker-end="url(#arrow)"/>
+  <text x="446" y="398" class="label">1…t</text>
+  <path d="M380,468 L478,468" class="edge" marker-end="url(#arrow)"/>
+  <text x="429" y="486" class="label" text-anchor="middle">t+1…t+H</text>
+
+  <!-- Arestas dentro da rede -->
+  <path d="M590,195 L590,271" class="edge" marker-end="url(#arrow)"/>
+  <text x="600" y="238" class="label">inicializa o estado</text>
+  <path d="M590,363 L590,421" class="edge" marker-end="url(#arrow)"/>
+  <text x="600" y="396" class="label">estado final da volta t</text>
+  <path d="M700,160 L725,160 L725,445 L702,445" class="edge" marker-end="url(#arrow)"/>
+  <text x="731" y="292" class="label">contexto</text>
+  <text x="731" y="306" class="label">a cada</text>
+  <text x="731" y="320" class="label">passo</text>
+
+  <!-- Coluna 3: cenários, treino e saída -->
+  <rect x="790" y="100" width="300" height="120" rx="10" fill="#F3F5F8" stroke="#D5DAE1" stroke-width="1.4"/>
+  <text x="806" y="126" class="card-title">Cenários no decoder</text>
+  <text x="806" y="148" class="item"><tspan font-weight="700">A</tspan> · o pneu atual continua envelhecendo</text>
+  <text x="806" y="170" class="item"><tspan font-weight="700">B</tspan> · pneu novo do composto X (idade 0)</text>
+  <text x="806" y="196" class="label">Comparar A × B alimenta o simulador</text>
+  <text x="806" y="211" class="label">de estratégia (parar agora ou ficar na pista).</text>
+
+  <rect x="790" y="278" width="300" height="80" rx="10" fill="#F3F5F8" stroke="#D5DAE1" stroke-width="1.4"/>
+  <text x="806" y="304" class="card-title">Treino</text>
+  <text x="806" y="326" class="item">perda pinball nos quantis 0,1 · 0,5 · 0,9</text>
+  <text x="806" y="346" class="item">calculada só nas voltas limpas (máscara)</text>
+
+  <rect x="790" y="450" width="300" height="70" rx="10" fill="#1B2430"/>
+  <text x="940" y="480" class="net-title" text-anchor="middle">Cabeça quantílica</text>
+  <text x="940" y="502" class="net-sub" text-anchor="middle">p10 · p50 · p90 em cada volta</text>
+  <path d="M700,485 L788,485" class="edge" marker-end="url(#arrow)"/>
+
+  <rect x="790" y="545" width="300" height="110" rx="10" fill="#FFFFFF" stroke="#1B2430" stroke-width="1.4"/>
+  <text x="806" y="571" class="card-title">Saída</text>
+  <text x="806" y="593" class="item">ritmo relativo nas voltas t+1 … t+H</text>
+  <text x="806" y="615" class="item">tempo previsto = (1 + ritmo) ×</text>
+  <text x="806" y="635" class="item">melhor volta do piloto no quali</text>
+  <path d="M940,520 L940,543" class="edge" marker-end="url(#arrow)"/>
+
+  <!-- Linha do tempo de exemplo -->
+  <text x="40" y="566" class="card-title">Exemplo: previsão ao fim da volta 20, com H = 5</text>
+  <g>
+    <rect x="40" y="580" width="58" height="40" rx="6" fill="#E8F0FE" stroke="#3B6FD8"/>
+    <text x="69" y="605" class="lap">16</text>
+    <rect x="104" y="580" width="58" height="40" rx="6" fill="#E8F0FE" stroke="#3B6FD8"/>
+    <text x="133" y="605" class="lap">17</text>
+    <rect x="168" y="580" width="58" height="40" rx="6" fill="#E8F0FE" stroke="#3B6FD8"/>
+    <text x="197" y="605" class="lap">18</text>
+    <rect x="232" y="580" width="58" height="40" rx="6" fill="#E8F0FE" stroke="#3B6FD8"/>
+    <text x="261" y="605" class="lap">19</text>
+    <rect x="296" y="580" width="58" height="40" rx="6" fill="#E8F0FE" stroke="#3B6FD8"/>
+    <text x="325" y="605" class="lap">20</text>
+    <line x1="370" y1="574" x2="370" y2="626" stroke="#B3262E" stroke-width="2" stroke-dasharray="4 3"/>
+    <rect x="386" y="580" width="58" height="40" rx="6" fill="#FFF1E0" stroke="#D9822B"/>
+    <text x="415" y="605" class="lap">21</text>
+    <rect x="450" y="580" width="58" height="40" rx="6" fill="#FFF1E0" stroke="#D9822B"/>
+    <text x="479" y="605" class="lap">22</text>
+    <rect x="514" y="580" width="58" height="40" rx="6" fill="#FFF1E0" stroke="#D9822B"/>
+    <text x="543" y="605" class="lap">23</text>
+    <rect x="578" y="580" width="58" height="40" rx="6" fill="#FFF1E0" stroke="#D9822B"/>
+    <text x="607" y="605" class="lap">24</text>
+    <rect x="642" y="580" width="58" height="40" rx="6" fill="#FFF1E0" stroke="#D9822B"/>
+    <text x="671" y="605" class="lap">25</text>
+  </g>
+  <text x="197" y="642" class="label" text-anchor="middle">encoder: voltas 1…20 já disputadas</text>
+  <text x="543" y="642" class="label" text-anchor="middle">decoder: voltas 21…25 a prever</text>
+  <text x="370" y="666" class="label" text-anchor="middle">agora</text>
+</svg>

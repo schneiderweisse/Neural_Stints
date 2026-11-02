@@ -1,0 +1,25 @@
+# Dados baixados ou derivados: recrie com os scripts de pipeline/ (ver data/README.md)
+/data/raw/
+/data/interim/
+/data/processed/
+/data/live/
+
+# Plano e cronograma do projeto: ficam só na máquina local
+/docs/plano_projeto_rn2.pdf
+/docs/make_plan_pdf.py
+
+# Modelos treinados e saídas pesadas
+/models/
+/runs/
+
+# Ambiente Python
+/.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Ferramentas locais
+/.claude/
+.Rhistory
+.RData
+.Rproj.user/

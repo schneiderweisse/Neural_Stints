@@ -19,6 +19,8 @@ Cada previsão vem com um intervalo de incerteza (quantis p10, p50 e p90). Com e
 
 ## Abordagem
 
+![Como as variáveis entram na rede](docs/figures/variaveis_rede.svg)
+
 - **Arquitetura:** rede recorrente encoder–decoder (LSTM e GRU). O encoder lê a corrida até o momento; o decoder recebe o que já se sabe sobre as voltas futuras (idade do pneu, composto, voltas restantes) e prevê os tempos de volta.
 - **Alvo:** ritmo relativo à melhor volta do piloto no treino classificatório, para comparar circuitos e temporadas diferentes.
 - **Eras de regulamento:** os dados cobrem as temporadas de 2022 a 2026, que têm regulamentos técnicos e especificações de pneu diferentes. Em vez de um modelo por era, uma única rede é condicionada pelo regulamento, pela especificação do pneu e pela dureza do composto (C1 a C6).
@@ -38,7 +40,15 @@ Além da avaliação com dados históricos, a rede é testada durante corridas r
 | Pirelli / F1.com | Compostos nominados para cada Grande Prêmio |
 | Live timing da F1, via f1-dash | Dados ao vivo durante as corridas |
 
-Os dados brutos não ficam neste repositório. Cada fonte tem a sua própria licença ou termos de uso.
+Os dados brutos não ficam neste repositório. Cada fonte tem a sua própria licença ou termos de uso. Como baixar e organizar os dados está em [data/README.md](data/README.md).
+
+## Organização
+
+```
+pipeline/   scripts de coleta e preparação dos dados
+data/       dados brutos, intermediários e de referência (ver data/README.md)
+docs/       documentos e figuras do projeto
+```
 
 ## Aviso
 

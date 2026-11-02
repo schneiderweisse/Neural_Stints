@@ -42,6 +42,21 @@ Além da avaliação com dados históricos, a rede é testada durante corridas r
 
 Os dados brutos não ficam neste repositório. Cada fonte tem a sua própria licença ou termos de uso. Como baixar e organizar os dados está em [data/README.md](data/README.md).
 
+## Como rodar
+
+Requer Python 3.11 e git. A partir da pasta do repositório:
+
+```bash
+py -3.11 -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt
+py pipeline/fetch_tracinginsights.py
+.venv/Scripts/python -m pipeline.build_laps
+.venv/Scripts/python -m pipeline.race_laps
+.venv/Scripts/python -m pipeline.sequences
+```
+
+No macOS ou Linux, use `python3` e `.venv/bin/python`.
+
 ## Organização
 
 ```

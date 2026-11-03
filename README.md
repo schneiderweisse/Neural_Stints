@@ -68,3 +68,43 @@ docs/       documentos e figuras do projeto
 ## Aviso
 
 Projeto acadêmico e não oficial, sem qualquer vínculo com a Fórmula 1, a FIA, a Pirelli ou as equipes. Fórmula 1 e marcas relacionadas pertencem aos seus respectivos donos.
+
+## Cronograma
+
+Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O GP de São Paulo recebe a primeira versão da rede ao vivo (v0, modelo simplificado); o GP de Las Vegas, a versão final (v1).
+
+✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
+
+*Atualizado em 2 de novembro de 2026.*
+
+### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
+
+| Data | Atividade | Status |
+|---|---|---|
+| Seg 2 – Ter 3 | Sparse clone do TracingInsights 2022–2026 (tempos de volta, clima, race control) | ✅ |
+| Seg 2 – Ter 3 | Atualização dos dados de 2026 até o GP do México | ✅ |
+| Seg 2 – Ter 3 | Tabela de voltas, flags de limpeza, alvo relativo ao quali e sequências encoder/decoder | ✅ |
+| Qua 4 | Baseline ingênuo; GRU v0; backtest em Austin e México | ⏳ |
+| Qui 5 | Serviço ao vivo: leitura do f1-dash, histórico de voltas, gravador das sessões | ⏳ |
+| Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |
+| Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 | ⏳ |
+| Dom 8 | 🔴 **GP de São Paulo (14h00):** v0 ao vivo e gravação da corrida | ⏳ |
+
+### Semanas 2 e 3 · 9 a 22 de novembro · v1 em Las Vegas
+
+| Data | Atividade | Status |
+|---|---|---|
+| 9 – 15/11 | Compostos C1–C6 por GP; modelo linear misto e LightGBM; LSTM × GRU; previsão quantílica; experimento das eras de regulamento; avaliação da v0 em Interlagos | ⏳ |
+| 16 – 19/11 | Congelar a v1; painel com o simulador de estratégia; ensaio por replay da gravação de Interlagos | ⏳ |
+| Qui 19/11 | Ensaio no TL1 de Las Vegas (21h30) | ⏳ |
+| Sex 20/11 | Ensaios no TL2 (01h00) e TL3 (21h30) | ⏳ |
+| Sáb 21/11 | Quali (01h00), que fornece a referência | ⏳ |
+| Dom 22/11 | 🔴 **GP de Las Vegas (01h00, sábado à noite):** v1 ao vivo e gravação da corrida | ⏳ |
+
+### Semanas 4 e 5 · 23 de novembro até a entrega
+
+| Data | Atividade | Status |
+|---|---|---|
+| 23 – 26/11 | Avaliação ao vivo (Interlagos × Las Vegas); backtest do simulador de estratégia contra as paradas reais | ⏳ |
+| 27 – 29/11 | Ablação com telemetria (se houver tempo); figuras finais; redação do relatório | ⏳ |
+| 30/11 – entrega | Revisão do relatório; apresentação com demonstração por replay | ⏳ |

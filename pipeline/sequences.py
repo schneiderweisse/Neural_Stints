@@ -47,7 +47,7 @@ Z_CLIP = 10.0         # voltas de SC e de pit ficam a ~20 desvios-padrão das vo
 
 
 def prepare(race: pd.DataFrame) -> pd.DataFrame:
-    race = race[~race["race_wet"]].copy()
+    race = race[~race["race_wet"] & race["ref_lap"].notna()].copy()
     race = race.sort_values(["year", "round", "driver", "lap"]).reset_index(drop=True)
     for c, (lo, hi) in GAP_CLIP.items():
         race[c] = race[c].clip(lo, hi)
@@ -59,10 +59,12 @@ def prepare(race: pd.DataFrame) -> pd.DataFrame:
     return race
 
 
-def split_races(race: pd.DataFrame) -> dict[str, list[str]]:
-    order = race[["race_id", "year", "round"]].drop_duplicates().sort_values(["year", "round"])
+def split_races(race: pd.DataFrame) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Divisão cronológica das corridas e o rótulo de cada uma (<ano> <circuito>)."""
+    order = race[["race_id", "race_label", "year", "round"]].drop_duplicates().sort_values(["year", "round"])
     ids = order["race_id"].tolist()
-    return {"train": ids[:-(N_VAL + N_TEST)], "val": ids[-(N_VAL + N_TEST):-N_TEST], "test": ids[-N_TEST:]}
+    splits = {"train": ids[:-(N_VAL + N_TEST)], "val": ids[-(N_VAL + N_TEST):-N_TEST], "test": ids[-N_TEST:]}
+    return splits, dict(zip(order["race_id"], order["race_label"]))
 
 
 def fit_stats(train: pd.DataFrame, cols: list[str]) -> dict[str, list[float]]:
@@ -85,7 +87,7 @@ def encode(df: pd.DataFrame, num: list[str], boolean: list[str], stats: dict) ->
 
 def build() -> tuple[dict, dict]:
     race = prepare(pd.read_parquet(RACE_LAPS))
-    splits = split_races(race)
+    splits, labels = split_races(race)
     train = race[race["race_id"].isin(splits["train"])]
     stats = fit_stats(train, OBSERVED_NUM + KNOWN_NUM + STATIC_NUM)
     vocabs = {c: vocab(train, c) for c in STATIC_CAT}
@@ -122,7 +124,7 @@ def build() -> tuple[dict, dict]:
               "seq_id": first["seq_id"].to_numpy(), "lap": race["lap"].to_numpy(np.int64),
               "ref_lap": race["ref_lap"].to_numpy(np.float32), **windows}
     meta = {
-        "horizon": HORIZON, "min_context": MIN_CONTEXT, "splits": splits,
+        "horizon": HORIZON, "min_context": MIN_CONTEXT, "splits": splits, "race_labels": labels,
         "observed": OBSERVED_NUM + OBSERVED_BOOL, "known": KNOWN_NUM + KNOWN_BOOL,
         "static_cat": STATIC_CAT, "static_x": STATIC_NUM + STATIC_BOOL,
         "target": "pace = lap_time / ref_lap - 1", "stats": stats, "vocabs": vocabs,
@@ -162,7 +164,9 @@ def main() -> None:
         ids = meta["splits"][name]
         n_win = int((arrays["win_split"] == name).sum())
         n_seq = int((arrays["seq_split"] == name).sum())
-        print(f"  {name:5}: {len(ids):3} corridas ({ids[0]} a {ids[-1]}), {n_seq:5} sequências, {n_win:6} janelas")
+        print(f"  {name:5}: {len(ids):3} corridas, {n_seq:5} sequências, {n_win:6} janelas")
+        if name != "train":
+            print("         " + ", ".join(meta["race_labels"][r] for r in ids))
     print(f"  entradas: encoder {len(meta['observed']) + len(meta['known'])}, decoder {len(meta['known'])}, "
           f"estáticas {len(meta['static_cat'])} categóricas + {len(meta['static_x'])} numéricas")
 

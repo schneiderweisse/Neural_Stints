@@ -3,9 +3,9 @@
 Entrada: data/interim/laps.parquet (build_laps.py). Saída: data/processed/race_laps.parquet,
 uma linha por (corrida, piloto, volta), com:
 
-- referência do piloto no fim de semana: a melhor volta em pneu de pista seca nas sessões
-  anteriores à corrida (treinos, quali, quali da sprint e sprint). É conhecida antes da largada,
-  então pode ser usada ao vivo sem vazar informação do futuro;
+- referência do piloto no fim de semana: a melhor volta em pneu de pista seca no quali ou, se o
+  quali foi molhado, nos treinos livres. É conhecida antes da largada, então pode ser usada ao vivo
+  sem vazar informação do futuro;
 - alvo: pace = tempo de volta / referência − 1 (ritmo relativo);
 - flags de limpeza e a máscara `clean`, que define em quais voltas a perda é calculada;
 - variáveis por volta: setores relativos, speed traps relativos, gaps, pneu, clima e progresso.
@@ -32,6 +32,7 @@ COMPOUND_REL = {"SOFT": 0, "MEDIUM": 1, "HARD": 2}
 NEUTRALISED = "[4567]"           # 4 safety car, 5 bandeira vermelha, 6 VSC, 7 fim do VSC
 OUTLIER_RATIO = 1.07             # volta > 107% da mediana limpa do piloto na corrida
 WET_RACE_SHARE = 0.10            # corrida "molhada" se > 10% das voltas foram com pneu de chuva
+WET_QUALI_SHARE = 0.50           # quali "molhado" se > 50% das voltas foram com pneu de chuva
 PACE_CLIP = (-0.05, 0.60)        # limites do ritmo usado como entrada (voltas de SC/pit são muito lentas)
 KEYS = ["race_id", "driver"]
 
@@ -41,16 +42,36 @@ def regulation(year: int) -> str:
 
 
 def weekend_reference(laps: pd.DataFrame) -> pd.DataFrame:
-    """Melhor volta e melhores setores do piloto antes da corrida, em pneu de pista seca."""
-    pre = laps[(laps["stype"] != "R") & laps["compound"].isin(DRY) & (laps["deleted"] != True)]
+    """Volta e setores de referência do piloto no fim de semana, todos em pneu de pista seca.
+
+    Usa a melhor volta seca do quali. Se o quali foi molhado (mais da metade das voltas com pneu de
+    chuva) ou se o piloto não tem volta seca no quali, usa a melhor volta seca dos treinos livres.
+    Sem volta seca nos treinos (fim de semana todo molhado, como Spa 2023), usa as voltas com pneu
+    liso do quali molhado e, por fim, a mediana das referências do evento.
+    O critério é da sessão, não da volta: num quali úmido, as poucas voltas com pneu liso são
+    lentas (Canadá 2023: a volta "seca" do quali ficou ~9% mais lenta que a dos treinos).
+    Os setores de referência vêm da mesma fonte que a volta.
+    """
     keys = ["year", "event", "driver"]
-    ref = pre.groupby(keys).agg(
-        ref_lap=("lap_time", "min"), ref_s1=("s1", "min"), ref_s2=("s2", "min"), ref_s3=("s3", "min"))
-    # De qual tipo de sessão veio a melhor volta. Se o quali foi molhado, ela vem dos treinos e
-    # é mais lenta que uma volta de quali seca, o que desloca o ritmo relativo da corrida para baixo.
-    best = pre.dropna(subset=["lap_time"]).sort_values("lap_time").drop_duplicates(keys)
-    ref = ref.join(best.set_index(keys)["stype"].rename("ref_stype"))
-    ref["ref_from_quali"] = ref["ref_stype"].isin(["Q", "SQ"])
+    quali = laps[laps["stype"] == "Q"]
+    wet_share = quali["compound"].isin(WET).groupby([quali["year"], quali["event"]]).mean()
+    wet_quali = wet_share[wet_share > WET_QUALI_SHARE].index
+    in_wet_quali = pd.Series(pd.MultiIndex.from_frame(laps[["year", "event"]]).isin(wet_quali), index=laps.index)
+    dry = laps[laps["compound"].isin(DRY) & (laps["deleted"] != True) & laps["lap_time"].notna()]
+    is_q = dry["stype"] == "Q"
+    wet_q = is_q & in_wet_quali[dry.index]
+    sources = [("Q", is_q & ~wet_q),           # quali seco
+               ("FP", dry["stype"] == "FP"),    # treinos livres
+               ("Q_wet", wet_q)]                # voltas lisas de um quali molhado (último recurso)
+    parts = []
+    for source, rows in sources:
+        ref = dry[rows].groupby(keys).agg(
+            ref_lap=("lap_time", "min"), ref_s1=("s1", "min"), ref_s2=("s2", "min"), ref_s3=("s3", "min"))
+        parts.append(ref.assign(ref_source=source))
+    # Prioridade na ordem acima: cada piloto usa a primeira fonte em que tem volta seca
+    ref = pd.concat(parts)
+    ref = ref[~ref.index.duplicated(keep="first")]
+    ref["ref_from_quali"] = ref["ref_source"] == "Q"
     return ref.reset_index()
 
 
@@ -58,6 +79,7 @@ def add_reference(race: pd.DataFrame, ref: pd.DataFrame) -> pd.DataFrame:
     race = race.merge(ref, on=["year", "event", "driver"], how="left")
     # Piloto sem volta seca no fim de semana: usa a mediana das referências do evento
     race["ref_fallback"] = race["ref_lap"].isna()
+    race["ref_source"] = race["ref_source"].fillna("event_median")
     race["ref_from_quali"] = race["ref_from_quali"].fillna(False).astype(bool)
     for c in ["ref_lap", "ref_s1", "ref_s2", "ref_s3"]:
         race[c] = race[c].fillna(race.groupby("race_id")[c].transform("median"))
@@ -130,10 +152,12 @@ def main() -> None:
     laps = pd.read_parquet(LAPS)
     circuits = pd.read_csv(CIRCUITS)[["year", "event", "circuit"]]
     race = laps[laps["stype"] == "R"].copy()
+    # As corridas são identificadas pelo circuito, não pelo nome do GP (que muda entre anos)
     race = race.merge(circuits, on=["year", "event"], how="left")
     if race["circuit"].isna().any():
         raise SystemExit(f"GPs sem circuito em {CIRCUITS.name}: "
                          f"{race.loc[race['circuit'].isna(), ['year', 'event']].drop_duplicates().values.tolist()}")
+    race["race_label"] = race["year"].astype(str) + " " + race["circuit"]
     race = add_reference(race, weekend_reference(laps))
     race = add_flags(race)
     race = add_gaps(race)

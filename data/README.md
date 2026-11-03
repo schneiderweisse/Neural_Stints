@@ -64,14 +64,12 @@ Geradas pelo pipeline, nesta ordem, a partir da pasta `Neural_Stints`:
 
 Decisões principais:
 
-- **Referência e alvo:** a referência é a melhor volta do piloto em pneu de pista seca nas sessões anteriores à corrida, e o alvo é `pace = tempo de volta / referência − 1`. Quando o quali é molhado (Las Vegas 2025, Canadá 2023), a referência vem dos treinos e o ritmo relativo da corrida fica menor; a coluna `ref_from_quali` marca isso.
+- **Referência e alvo:** o alvo é `pace = tempo de volta / referência − 1`. A referência é a melhor volta do piloto em pneu de pista seca no **quali**. Se o quali foi molhado (mais da metade das voltas com pneu de chuva) ou o piloto não tem volta seca nele, a referência é a melhor volta seca dos **treinos livres**. Sem volta seca nem nos treinos (Spa 2023), usa as voltas com pneu liso do quali molhado e, por último, a mediana do evento. A coluna `ref_source` guarda a fonte (Q, FP, Q_wet ou event_median) e `ref_from_quali` entra na rede: uma referência dos treinos é mais lenta que uma de quali seco, então o ritmo relativo daquela corrida fica menor (Las Vegas 2025, por exemplo).
+- **Circuitos, não GPs:** as corridas são identificadas pelo circuito (`reference/circuits.csv`), porque o nome do GP muda entre anos. Em 2026, o GP da Espanha foi em Madri (Madring) e o GP do Bahrein, em Kuala Lumpur; o circuito de Barcelona passou a sediar o "GP de Barcelona". O rótulo de cada corrida é `<ano> <circuito>` (coluna `race_label`) e `reference/compounds.csv` também usa o circuito como chave.
 - **Voltas limpas (`clean`):** com tempo, fora da volta 1, sem entrada ou saída dos boxes, sem SC/VSC/bandeira vermelha, não deletada nem gerada pelo FastF1, em pneu de pista seca e até 107% da mediana limpa do piloto na corrida. Só elas entram na perda; as outras continuam na sequência como entrada.
 - **Corridas molhadas** (mais de 10% das voltas com pneu intermediário ou de chuva) ficam fora das sequências: 13 das 111.
 - **Divisão por corrida e em ordem cronológica:** treino de 2022 até a 9ª corrida seca de 2026, validação nas 4 seguintes e teste nas 5 últimas. Normalização e vocabulários são ajustados só no treino; valores não vistos (um circuito novo, por exemplo) viram `<unk>`.
 - **Janela:** ao fim da volta *t*, o encoder lê as voltas 1..*t* e o decoder prevê as voltas *t*+1..*t*+10, recebendo só as variáveis conhecidas no futuro (pneu, composto, paradas, progresso da corrida).
-
-`reference/circuits.csv` liga cada GP ao circuito (em 2026, o GP da Espanha foi em Madri e o GP do Bahrein, em Kuala Lumpur).
-
 ## OpenF1 (`raw/openf1/`)
 
 Cópia da pasta `OpenF1` coletada antes do projeto (dados até o GP dos EUA de 2026), só com os endpoints úteis aqui: `meeting`, `sessions`, `drivers`, `laps`, `stints`, `pit` e `race_control`. Serve para checagem cruzada e para estimar o tempo perdido no pit lane (`pit.json`). Licença: CC BY-NC-SA 4.0.
@@ -80,4 +78,4 @@ Para atualizar, rode `node raw/openf1/download_openf1.js` (Node 18+). Esse scrip
 
 ## Referência (`reference/`)
 
-`compounds.csv` traz os compostos nominados (hard, medium, soft → C1–C6) de cada GP, com a fonte. Hoje cobre só os 7 circuitos do estudo de regulamento 2025 × 2026 (14 eventos) e será completada para 2022–2026.
+`circuits.csv` liga cada GP (ano e nome do evento) ao circuito, de 2022 até o fim de 2026. `compounds.csv` traz os compostos nominados (hard, medium, soft → C1–C6) por ano e circuito, com a fonte. Hoje cobre só os 7 circuitos do estudo de regulamento 2025 × 2026 (14 eventos) e será completada para 2022–2026.

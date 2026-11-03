@@ -91,6 +91,7 @@ year,event,circuit,source
 2025,Spanish Grand Prix,Catalunya,OpenF1 sessions.circuit_short_name
 2025,São Paulo Grand Prix,Interlagos,OpenF1 sessions.circuit_short_name
 2025,United States Grand Prix,Austin,OpenF1 sessions.circuit_short_name
+2026,Abu Dhabi Grand Prix,Yas Marina Circuit,manual (calendário 2026; mesmo circuito de 2022-2025)
 2026,Australian Grand Prix,Melbourne,OpenF1 sessions.circuit_short_name
 2026,Austrian Grand Prix,Spielberg,OpenF1 sessions.circuit_short_name
 2026,Azerbaijan Grand Prix,Baku,OpenF1 sessions.circuit_short_name
@@ -104,9 +105,12 @@ year,event,circuit,source
 2026,Hungarian Grand Prix,Hungaroring,OpenF1 sessions.circuit_short_name
 2026,Italian Grand Prix,Monza,OpenF1 sessions.circuit_short_name
 2026,Japanese Grand Prix,Suzuka,OpenF1 sessions.circuit_short_name
+2026,Las Vegas Grand Prix,Las Vegas,manual (calendário 2026; mesmo circuito de 2023-2025)
+2026,Mexico City Grand Prix,Mexico City,manual (OpenF1 local ainda sem o GP; mesmo circuito de 2023-2025)
 2026,Miami Grand Prix,Miami,OpenF1 sessions.circuit_short_name
 2026,Monaco Grand Prix,Monte Carlo,OpenF1 sessions.circuit_short_name
+2026,Qatar Grand Prix,Lusail,manual (calendário 2026; mesmo circuito de 2023-2025)
 2026,Singapore Grand Prix,Singapore,OpenF1 sessions.circuit_short_name
 2026,Spanish Grand Prix,Madring,OpenF1 sessions.circuit_short_name
+2026,São Paulo Grand Prix,Interlagos,manual (calendário 2026; mesmo circuito de 2022-2025)
 2026,United States Grand Prix,Austin,OpenF1 sessions.circuit_short_name
-2026,Mexico City Grand Prix,Mexico City,manual (OpenF1 local ainda sem o GP; mesmo circuito de 2023-2025)

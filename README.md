@@ -65,6 +65,8 @@ data/       dados brutos, intermediários e de referência (ver data/README.md)
 docs/       documentos e figuras do projeto
 ```
 
+O formato dos resultados dos modelos e as métricas calculadas estão em [docs/resultados.md](docs/resultados.md). O que foi feito e decidido a cada dia está no [diário de desenvolvimento](docs/diario.md).
+
 ## Aviso
 
 Projeto acadêmico e não oficial, sem qualquer vínculo com a Fórmula 1, a FIA, a Pirelli ou as equipes. Fórmula 1 e marcas relacionadas pertencem aos seus respectivos donos.

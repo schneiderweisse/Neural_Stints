@@ -11,6 +11,8 @@ Detalhes que só dá para acompanhar volta a volta, e por isso ficam no rastread
 - tempo da volta: às vezes o contador de voltas avança antes do LastLapTime ser atualizado. A volta
   fica pendente (lap_time vazio) até o valor mudar; se a volta seguinte terminar antes, usa a soma
   dos setores;
+- voltas deletadas por limite de pista: lidas das mensagens do race control (chegam depois da
+  volta; a linha já gravada é corrigida), como a flag `deleted` do TracingInsights;
 - idade do pneu: o TotalLaps do feed chega atrasado, então a idade é contada aqui, volta a volta,
   a partir do StartLaps do stint (voltas que o jogo de pneus já tinha). Como no FastF1, a volta de
   entrada é do stint antigo e a de saída já é do novo.
@@ -19,6 +21,8 @@ import re
 from dataclasses import dataclass, field
 
 WET = {"INTERMEDIATE", "WET"}
+# "CAR 81 (PIA) TIME 1:22.907 DELETED - TRACK LIMITS AT TURN 12 LAP 5 14:10:09"
+DELETION = re.compile(r"CAR (\d+) \(\w+\) TIME [\d:.]+ (DELETED|REINSTATED).*?\bLAP (\d+)")
 
 
 def parse_time(value) -> float | None:
@@ -89,15 +93,46 @@ class DriverTrack:
 
 
 class LapTracker:
-    """Acumula as voltas completadas de todos os pilotos de uma sessão."""
+    """Acumula as voltas completadas de todos os pilotos de uma sessão.
 
-    def __init__(self):
+    `load(session)`, se dado, devolve as voltas já gravadas daquela sessão. Assim, se o leitor for
+    reiniciado no meio da sessão, o histórico continua de onde parou em vez de recomeçar. As voltas
+    que terminaram enquanto o leitor estava parado não voltam (o feed só traz a última); elas ficam
+    como buracos que o histórico do modelo (live/history.py) preenche como voltas sem tempo.
+    """
+
+    def __init__(self, load=None):
         self.session = None
         self.drivers: dict[str, DriverTrack] = {}
         self.rows: list[dict] = []
+        self.load = load
+        self.recorded: dict[str, int] = {}               # piloto -> última volta já gravada
+        self.deleted: dict[tuple[str, int], bool] = {}   # (piloto, volta) -> volta deletada pelo race control
+        self.by_key: dict[tuple[str, int], dict] = {}
+        self.messages_seen = 0
 
     def reset(self, session: str | None) -> None:
-        self.session, self.drivers, self.rows = session, {}, []
+        self.session, self.drivers = session, {}
+        self.rows = list(self.load(session)) if (self.load and session) else []
+        self.recorded, self.deleted, self.messages_seen = {}, {}, 0
+        self.by_key = {(str(r["driver_number"]), int(r["lap"])): r for r in self.rows}
+        for num, lap in self.by_key:
+            self.recorded[num] = max(self.recorded.get(num, 0), lap)
+
+    def read_deletions(self, state: dict) -> None:
+        """Voltas deletadas (limite de pista) e reinstauradas, pelas mensagens do race control.
+
+        A mensagem costuma chegar uma ou duas voltas depois; a linha já gravada é corrigida.
+        """
+        messages = as_list(sub(state, "RaceControlMessages", "Messages"))
+        for m in messages[self.messages_seen:]:
+            hit = DELETION.search(str(m.get("Message", "")) if isinstance(m, dict) else "")
+            if hit:
+                key = (hit.group(1), int(hit.group(3)))
+                self.deleted[key] = hit.group(2) == "DELETED"
+                if key in self.by_key:
+                    self.by_key[key]["deleted"] = self.deleted[key]
+        self.messages_seen = len(messages)
 
     def update(self, state: dict | None, clock: float) -> list[dict]:
         """Processa um estado; devolve as voltas que terminaram desde o estado anterior.
@@ -118,9 +153,13 @@ class LapTracker:
             tr = self.drivers.get(num)
             if tr is None:
                 n_stints = len(as_list(sub(state, "TimingAppData", "Lines", num, "Stints")))
-                tr = self.drivers[num] = DriverTrack(laps=int(line.get("NumberOfLaps") or 0), in_pit_now=in_pit,
-                                                     last_time=last_time, stints_seen=n_stints,
-                                                     lap_stint=max(n_stints - 1, 0))
+                laps_now = int(line.get("NumberOfLaps") or 0)
+                if num in self.recorded:          # retomada: a volta atual entra se ainda não foi gravada
+                    laps_now, last_time_seen = min(laps_now, self.recorded[num]), None
+                else:
+                    last_time_seen = last_time
+                tr = self.drivers[num] = DriverTrack(laps=laps_now, in_pit_now=in_pit, last_time=last_time_seen,
+                                                     stints_seen=n_stints, lap_stint=max(n_stints - 1, 0))
             if tr.pending is not None and last_time != tr.last_time:
                 tr.pending["lap_time"], tr.pending["lap_time_source"] = parse_time(last_time), "feed"
                 tr.last_time, tr.pending = last_time, None
@@ -141,12 +180,15 @@ class LapTracker:
                     row["lap_time"], row["lap_time_source"] = None, None
                     tr.pending = row
                 tr.last_time = last_time
+                row["deleted"] = self.deleted.get((num, n), False)
+                self.by_key[(num, n)] = row
                 new.append(row)
                 tr.laps = n
                 tr.statuses = {status} if status else set()
                 # se o carro cruza a linha dentro do pit lane, a volta seguinte é de saída
                 tr.pit_in, tr.pit_out = False, in_pit
         self.rows.extend(new)
+        self.read_deletions(state)
         return new
 
     def stint_of_lap(self, stints: list, tr: DriverTrack) -> tuple[int, dict]:
@@ -186,6 +228,7 @@ class LapTracker:
             "compound": compound, "stint": idx + 1 if stints else None,
             "tyre_life": self.tyre_life(idx, stint, tr) if stints else None,
             "fresh_tyre": str(stint.get("New", "")).lower() == "true",
+            "tyre_start_laps": to_float(stint.get("StartLaps")),         # voltas que o jogo já tinha
             "position": position, "gap_leader": 0.0 if position == 1 else parse_gap(line.get("GapToLeader")),
             "gap_ahead": None if position == 1 else parse_gap(sub(line, "IntervalToPositionAhead", "Value")),
             "track_status": "".join(sorted(tr.statuses)), "pit_in": tr.pit_in, "pit_out": tr.pit_out,

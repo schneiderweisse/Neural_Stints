@@ -1,7 +1,8 @@
 """Lê o live timing (f1-dash ou gravação) e mantém o histórico de voltas da sessão em disco.
 
 A cada volta completada, grava data/live/<ano>_<circuito>_<sessão>/laps.parquet (escrita atômica:
-o painel nunca lê o arquivo pela metade). Uma sessão nova (outro SessionInfo) abre outra pasta.
+o painel nunca lê o arquivo pela metade). Uma sessão nova (outro SessionInfo) abre outra pasta. Se o
+arquivo da sessão já existe (o leitor foi reiniciado), o histórico continua a partir dele.
 
 Uso, a partir da pasta Neural_Stints:
     .venv/Scripts/python -m live.reader                              # f1-dash em localhost:4000
@@ -31,8 +32,18 @@ def save(tracker: LapTracker, out_dir: Path) -> Path:
     return path
 
 
+def load_laps(out_root: Path, session: str) -> list[dict]:
+    """Voltas já gravadas da sessão (para retomar depois de um reinício do leitor)."""
+    path = out_root / session / "laps.parquet"
+    if not path.exists():
+        return []
+    rows = pd.read_parquet(path).to_dict("records")
+    print(f"retomando {session}: {len(rows)} voltas já gravadas")
+    return rows
+
+
 def run(source, out_root: Path = LIVE, quiet: bool = False) -> LapTracker:
-    tracker = LapTracker()
+    tracker = LapTracker(load=lambda session: load_laps(out_root, session))
     waiting = False
     for clock, state in source:
         if state is None:

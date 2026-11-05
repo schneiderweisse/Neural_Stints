@@ -63,7 +63,10 @@ Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), o l
 ```bash
 .venv/Scripts/python -m live.reader                       # ao vivo, lendo o f1-dash a cada 3 s
 .venv/Scripts/python -m live.reader --replay <gravação>   # reprodução de uma corrida gravada
+.venv/Scripts/python -m live.history 2026_19              # confere: caminho ao vivo × pipeline numa corrida do treino
 ```
+
+Se o leitor for reiniciado no meio da sessão, ele retoma o histórico já gravado. O `live/history.py` transforma esse histórico nas variáveis do treino, usando as mesmas funções do pipeline.
 
 No macOS ou Linux, use `python3` e `.venv/bin/python`.
 
@@ -102,7 +105,8 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Qua 4 | Baseline ingênuo (feito na quinta, 5/11) | ✅ |
 | Qua 4 | GRU v0 (feita na quinta, 5/11) | ✅ |
 | Qua 4 | Backtest em Austin e México (feito na quinta, 5/11) | ✅ |
-| Qui 5 | Serviço ao vivo: leitura do f1-dash e histórico de voltas | ✅ |
+| Qui 5 | Serviço ao vivo: leitura do f1-dash | ✅ |
+| Qui 5 | Serviço ao vivo: histórico de voltas (retomada, voltas deletadas, variáveis do treino) | ✅ |
 | Qui 5 | Serviço ao vivo: gravador das sessões | ⏳ |
 | Qui 5 | Serviço ao vivo: previsões da GRU sobre o histórico | ⏳ |
 | Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |

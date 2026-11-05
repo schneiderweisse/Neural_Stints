@@ -58,6 +58,16 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 - **Intervalo de leitura:** no replay, ler o estado a cada 1, 3, 5 ou 10 s dá exatamente o mesmo histórico; a cada 30 s, setores e idade do pneu começam a errar. O padrão ficou em 3 s.
 - O caminho HTTP foi testado de ponta a ponta subindo o simulador e o `realtime` do f1-dash com a gravação de 2019: a sessão é detectada e as voltas são gravadas. O teste foi acelerado (~30×), o que equivale a ler a cada ~30 s de corrida e explica as diferenças de setores nesse teste.
 
+### Serviço ao vivo: histórico de voltas
+
+- **Retomada:** se o leitor for reiniciado no meio da sessão, ele carrega o `laps.parquet` já gravado e continua dele, sem duplicar voltas. As voltas que terminaram com o leitor parado não voltam (o feed só traz a última). Teste no GP da Alemanha de 2019, com o leitor caindo aos 70 min e voltando aos 85: nenhuma volta duplicada, 147 voltas perdidas e o resto igual ao da corrida sem queda.
+- **Voltas deletadas por limite de pista:** lidas das mensagens do race control (`CAR 81 (PIA) TIME 1:22.907 DELETED … LAP 5`) e reinstauradas quando houver mensagem. A mensagem chega depois da volta, e a linha já gravada é corrigida. Nas 13 mensagens do GP do México de 2026, as voltas marcadas são exatamente as 13 do TracingInsights.
+- `live/history.py` transforma o histórico ao vivo nas variáveis do treino, chamando as próprias funções do `pipeline/race_laps.py`:
+  - **referência do fim de semana:** pelo TracingInsights, se o quali já foi publicado, ou pelas sessões de treino e quali gravadas pelo leitor. No México 2026, a referência é idêntica à do pipeline para os 22 pilotos (volta e setores);
+  - **progresso da corrida:** pelo total de voltas anunciado no feed, porque ao vivo a corrida ainda não acabou;
+  - **voltas perdidas:** entram como voltas sem tempo, para a sequência continuar contínua. O pneu delas é reconstruído pela volta conhecida mais próxima, usando as voltas de uso do jogo montado (`StartLaps`); no teste da queda, composto, stint e idade das 147 voltas perdidas ficaram 100% corretos.
+- **Paridade com o pipeline:** as cinco corridas do teste foram refeitas pelo caminho ao vivo (`python -m live.history <race_id>`). Ritmo, setores e speed traps relativos, flags de limpeza, SC/VSC, tráfego, progresso, voltas no stint e composto concordam em 100% das voltas. A única diferença inicial eram as voltas deletadas, resolvida pela leitura do race control.
+
 ### Correção no pipeline: volta limpa calculável ao vivo
 
 - A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.

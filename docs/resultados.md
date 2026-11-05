@@ -140,7 +140,8 @@ O serviço de previsão e o painel são processos separados. O serviço lê o f1
 
 ```
 data/live/<ano>_<circuito>_<sessão>/       ex.: data/live/2026_interlagos_race/
-  recording.jsonl      fluxo bruto do f1-dash (/api/realtime), com horário; permite o replay
+  recording.jsonl      fluxo bruto do f1-dash (/api/realtime) no formato do simulador do f1-dash;
+                       uma parte nova (recording_2.jsonl…) a cada reinício do gravador
   laps.parquet         histórico de voltas montado pelo live.reader, com os nomes de coluna de race_laps.parquet
   predictions.parquet  previsões, no formato da tabela padrão com split = live
 ```

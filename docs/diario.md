@@ -68,6 +68,18 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
   - **voltas perdidas:** entram como voltas sem tempo, para a sequência continuar contínua. O pneu delas é reconstruído pela volta conhecida mais próxima, usando as voltas de uso do jogo montado (`StartLaps`); no teste da queda, composto, stint e idade das 147 voltas perdidas ficaram 100% corretos.
 - **Paridade com o pipeline:** as cinco corridas do teste foram refeitas pelo caminho ao vivo (`python -m live.history <race_id>`). Ritmo, setores e speed traps relativos, flags de limpeza, SC/VSC, tráfego, progresso, voltas no stint e composto concordam em 100% das voltas. A única diferença inicial eram as voltas deletadas, resolvida pela leitura do race control.
 
+### Serviço ao vivo: gravador das sessões
+
+- `live/recorder.py` assina o fluxo SSE do f1-dash (`/api/realtime`) e grava cada sessão em `data/live/<ano>_<circuito>_<sessão>/recording.jsonl`. O arquivo segue o formato do simulador do f1-dash: primeira linha com o estado completo no momento da conexão, depois uma mensagem por linha com o tópico, os dados e os milissegundos desde o início da gravação.
+- Comportamento:
+  - se o gravador for reiniciado na mesma sessão, a nova parte vai para `recording_2.jsonl`, com o seu próprio estado inicial, porque as atualizações perdidas no intervalo tornariam uma continuação inconsistente;
+  - quando o f1-dash troca de sessão, o gravador reconecta e abre o arquivo da sessão nova;
+  - sem sessão ou sem conexão, ele espera e tenta de novo.
+- **Teste:** subindo o simulador e o `realtime` do f1-dash com a gravação de 2019 (acelerada), o gravador salvou 14.415 mensagens em 4 min, até a volta 12.
+  - Reproduzida pelo `ReplaySource`, a gravação dá o mesmo histórico da gravação original: 211 voltas, nenhuma faltando, e tempos, setores, pneu, posição, box e status de pista idênticos.
+  - Reproduzida pelo próprio simulador do f1-dash, o painel carrega a sessão e as atualizações chegam até as voltas. O simulador anda mais devagar que o fator pedido no Windows (cada pausa curta vira ~15 ms), o que não afeta a gravação.
+- O `simulator save` do f1-dash não foi usado: pelo código, ele passa host e hub trocados em relação ao `realtime` e provavelmente não conecta no feed ao vivo.
+
 ### Correção no pipeline: volta limpa calculável ao vivo
 
 - A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.

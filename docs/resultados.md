@@ -40,7 +40,7 @@ Formato longo: uma linha é a previsão de uma volta. Uma janela com horizonte 1
 | `tyre_life` | inteiro | `16` | idade do pneu na volta prevista |
 | `stint` | inteiro | `2` | stint da volta prevista |
 | `same_stint` | lógico | `True` | a volta prevista está no mesmo stint da volta `t` (tarefa A) ou depois de uma parada (tarefa B) |
-| `clean` | lógico | `True` | a volta real é limpa; só essas entram nas métricas |
+| `clean` | lógico | `True` | a volta real é limpa (critério `clean`, com a mediana da corrida inteira); só essas entram nas métricas |
 | `ref_lap` | real (s) | `78.95` | referência do piloto no fim de semana |
 | `pace_p10`, `pace_p50`, `pace_p90` | real | `0.031`, `0.034`, `0.038` | previsão do ritmo relativo (`tempo / ref_lap − 1`) |
 | `pace_real` | real | `0.033` | ritmo real |
@@ -152,7 +152,7 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 
 | Modelo | `run_id` | Na v0 |
 |---|---|---|
-| Ingênuo: média das últimas 3 voltas limpas, repetida em todos os horizontes | `naive_<data>` | ✅ |
+| Ingênuo: média do ritmo das últimas 3 voltas limpas até a volta `t` (critério `clean_live`), repetida em todos os horizontes; sem intervalo | `naive_<data>` | ✅ |
 | GRU encoder–decoder, saída quantílica, todas as eras com embeddings (`pooled`), 1 semente | `gru_<data>_s1` | ✅ |
 | LSTM | | v1 |
 | Modelo linear misto e LightGBM | | v1 |

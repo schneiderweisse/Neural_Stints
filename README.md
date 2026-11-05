@@ -53,6 +53,7 @@ py pipeline/fetch_tracinginsights.py
 .venv/Scripts/python -m pipeline.build_laps
 .venv/Scripts/python -m pipeline.race_laps
 .venv/Scripts/python -m pipeline.sequences
+.venv/Scripts/python -m modeling.naive      # baseline ingênuo -> runs/naive_<data>/
 ```
 
 No macOS ou Linux, use `python3` e `.venv/bin/python`.
@@ -61,6 +62,8 @@ No macOS ou Linux, use `python3` e `.venv/bin/python`.
 
 ```
 pipeline/   scripts de coleta e preparação dos dados
+modeling/   modelos (baselines e redes) e cálculo das métricas
+runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)
 docs/       documentos e figuras do projeto
 ```
@@ -77,7 +80,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
 
-*Atualizado em 2 de novembro de 2026.*
+*Atualizado em 5 de novembro de 2026.*
 
 ### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
 
@@ -86,7 +89,9 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Seg 2 – Ter 3 | Sparse clone do TracingInsights 2022–2026 (tempos de volta, clima, race control) | ✅ |
 | Seg 2 – Ter 3 | Atualização dos dados de 2026 até o GP do México | ✅ |
 | Seg 2 – Ter 3 | Tabela de voltas, flags de limpeza, alvo relativo ao quali e sequências encoder/decoder | ✅ |
-| Qua 4 | Baseline ingênuo; GRU v0; backtest em Austin e México | ⏳ |
+| Qua 4 | Baseline ingênuo (feito na quinta, 5/11) | ✅ |
+| Qua 4 | GRU v0 | ⏳ |
+| Qua 4 | Backtest em Austin e México | ⏳ |
 | Qui 5 | Serviço ao vivo: leitura do f1-dash, histórico de voltas, gravador das sessões | ⏳ |
 | Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |
 | Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 | ⏳ |

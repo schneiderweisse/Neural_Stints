@@ -11,7 +11,8 @@ uma linha por (corrida, piloto, volta), com:
 - variáveis por volta: setores relativos, speed traps relativos, gaps, pneu, clima e progresso.
 
 Toda variável de entrada usa só informação disponível até a volta corrente (é calculável ao vivo).
-A única exceção é `outlier`, que entra apenas na máscara da perda, nunca como entrada.
+As exceções são `outlier` e `clean`, que usam a mediana da corrida inteira e por isso entram apenas
+na máscara da perda e nas métricas, nunca como entrada; a versão ao vivo é `clean_live`.
 
 Uso, a partir da pasta Neural_Stints:  .venv/Scripts/python -m pipeline.race_laps
 """
@@ -31,6 +32,7 @@ WET = ["INTERMEDIATE", "WET"]
 COMPOUND_REL = {"SOFT": 0, "MEDIUM": 1, "HARD": 2}
 NEUTRALISED = "[4567]"           # 4 safety car, 5 bandeira vermelha, 6 VSC, 7 fim do VSC
 OUTLIER_RATIO = 1.07             # volta > 107% da mediana limpa do piloto na corrida
+LIVE_PACE_MAX = 0.30             # teto de ritmo de uma volta limpa ao vivo (30% acima da referência)
 WET_RACE_SHARE = 0.10            # corrida "molhada" se > 10% das voltas foram com pneu de chuva
 WET_QUALI_SHARE = 0.50           # quali "molhado" se > 50% das voltas foram com pneu de chuva
 PACE_CLIP = (-0.05, 0.60)        # limites do ritmo usado como entrada (voltas de SC/pit são muito lentas)
@@ -99,6 +101,7 @@ def add_flags(race: pd.DataFrame) -> pd.DataFrame:
     candidate = (race["has_time"] & ~race["lap1"] & ~race["pit_in"] & ~race["pit_out"]
                  & ~race["neutralised"] & ~race["deleted"] & ~race["generated"] & race["dry_tyre"])
     median = race["lap_time"].where(candidate).groupby([race[k] for k in KEYS]).transform("median")
+    race["candidate"] = candidate
     race["outlier"] = candidate & (race["lap_time"] > OUTLIER_RATIO * median)
     race["clean"] = candidate & ~race["outlier"]
     wet_share = race.groupby("race_id")["wet_tyre"].transform("mean")
@@ -120,21 +123,33 @@ def add_gaps(race: pd.DataFrame) -> pd.DataFrame:
     return race
 
 
+def past_median(s: pd.Series, by: list[pd.Series], valid: pd.Series) -> pd.Series:
+    """Mediana das voltas válidas anteriores do mesmo piloto (só usa o passado)."""
+    return s.where(valid).groupby(by).transform(lambda x: x.expanding().median().shift(1))
+
+
 def causal_relative(s: pd.Series, by: list[pd.Series], valid: pd.Series) -> pd.Series:
-    """s / (mediana das voltas válidas anteriores do mesmo piloto) − 1; só usa o passado."""
-    past = s.where(valid).groupby(by).transform(lambda x: x.expanding().median().shift(1))
-    return s / past - 1
+    """s / (mediana das voltas válidas anteriores do mesmo piloto) − 1."""
+    return s / past_median(s, by, valid) - 1
 
 
 def add_features(race: pd.DataFrame) -> pd.DataFrame:
     race = race.sort_values(KEYS + ["lap"]).reset_index(drop=True)
     by = [race[k] for k in KEYS]
+    # Volta limpa calculável ao vivo: o corte de 107% usa a mediana das voltas anteriores, não a da
+    # corrida inteira. `clean` (com a mediana da corrida) fica só para a máscara da perda e as métricas;
+    # as entradas da rede e os baselines usam `clean_live`.
+    # O teto absoluto de ritmo cobre o começo da corrida, quando ainda não há voltas anteriores para
+    # comparar (voltas de relargada depois de bandeira vermelha chegam a 2× o tempo normal).
     race["pace"] = race["lap_time"] / race["ref_lap"] - 1
+    past = past_median(race["lap_time"], by, race["candidate"])
+    race["clean_live"] = (race["candidate"] & (race["pace"] <= LIVE_PACE_MAX)
+                          & ~(race["lap_time"] > OUTLIER_RATIO * past))
     race["pace_in"] = race["pace"].clip(*PACE_CLIP)
     for k in (1, 2, 3):
         race[f"s{k}_pace"] = (race[f"s{k}"] / race[f"ref_s{k}"] - 1).clip(*PACE_CLIP)
     for c in ["speed_i1", "speed_i2", "speed_fl", "speed_st"]:
-        race[f"{c}_rel"] = causal_relative(race[c], by, race["clean"]).clip(-0.2, 0.2)
+        race[f"{c}_rel"] = causal_relative(race[c], by, race["clean_live"]).clip(-0.2, 0.2)
 
     race["laps_total"] = race.groupby("race_id")["lap"].transform("max")
     race["laps_remaining"] = race["laps_total"] - race["lap"]

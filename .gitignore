@@ -8,6 +8,11 @@
 /docs/plano_projeto_rn2.pdf
 /docs/make_plan_pdf.py
 
+# Preparação teórica (guia de leitura do livro): fica só na máquina local
+/docs/preparacao_teorica_neural_stints.pdf
+/docs/make_preparacao_teorica.py
+/docs/grifos_cap10.json
+
 # Modelos treinados e saídas pesadas
 /models/
 /runs/

@@ -34,7 +34,7 @@ N_VAL, N_TEST = 4, 5  # últimas corridas (em ordem cronológica) para validaç�
 OBSERVED_NUM = ["pace_in", "s1_pace", "s2_pace", "s3_pace", "speed_i1_rel", "speed_i2_rel",
                 "speed_fl_rel", "speed_st_rel", "gap_ahead", "gap_leader", "position",
                 "track_temp", "air_temp", "humidity"]
-OBSERVED_BOOL = ["clean", "neutralised", "yellow", "traffic", "rain"]
+OBSERVED_BOOL = ["clean_live", "neutralised", "yellow", "traffic", "rain"]
 # Conhecidas no futuro: entram no encoder e no decoder (no decoder, descrevem o cenário de pneu)
 KNOWN_NUM = ["race_progress", "laps_remaining", "tyre_life", "stint_lap", "stint"]
 KNOWN_BOOL = ["fresh_tyre", "pit_in", "pit_out", "is_soft", "is_medium", "is_hard"]

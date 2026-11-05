@@ -2,6 +2,27 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 5 de novembro de 2026
+
+### Baseline ingênuo
+
+- `modeling/naive.py`: ao fim da volta *t*, prevê para as voltas *t*+1 a *t*+10 a média do ritmo relativo das 3 últimas voltas limpas. Sem intervalo e sem treino; previsões na validação e no teste.
+- Código comum a todos os modelos, no formato de [resultados.md](resultados.md): `modeling/frame.py` monta a tabela de alvos (uma linha por janela e horizonte) e `modeling/results.py` grava `runs/<run_id>/` (`config.json`, `predictions.parquet`, `metrics.json`, com escrita atômica) e calcula as métricas (MAE, RMSE e viés por horizonte, erro em 5 voltas, recortes por stint, composto e corrida, skill contra uma referência e as medidas de intervalo quando houver p10 e p90).
+- Resultado (`runs/naive_20261105`):
+
+  | Divisão | MAE | MAE h = 1 | MAE h = 10 | Viés | Erro em 5 voltas |
+  |---|---|---|---|---|---|
+  | Validação (Spa, Hungaroring, Zandvoort, Monza) | 0,725 s | 0,52 s | 0,87 s | +0,29 s | 2,51 s |
+  | Teste (Madring, Baku, Singapura, Austin, México) | 0,732 s | 0,50 s | 0,92 s | +0,31 s | 2,37 s |
+
+  O viés positivo é esperado: o carro fica mais rápido à medida que queima combustível, e o ingênuo repete o ritmo atual. O erro é bem maior depois de uma parada (1,37 s no teste) do que no mesmo stint (0,64 s), que é onde a rede tem mais a ganhar.
+
+### Correção no pipeline: volta limpa calculável ao vivo
+
+- A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.
+- Nova flag `clean_live` (corte sobre a mediana das voltas anteriores e teto de ritmo de 30% acima da referência). Ela substitui `clean` nas entradas da rede, nos speed traps e no baseline; `clean` fica só para a máscara da perda e as métricas. As duas concordam em 99,9% das voltas.
+- O teto de ritmo veio de um caso real: em Zandvoort 2026, a volta de relargada depois da bandeira vermelha (~146 s, o dobro do normal) passava como limpa por ser a primeira volta sem histórico, e inflava o erro da validação (MAE de 1,10 s antes da correção).
+
 ## 2 de novembro de 2026
 
 ### Escolha do projeto e escopo

@@ -46,6 +46,18 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
   A GRU melhora sobre o ingênuo para todos os pilotos do pódio. Nos gráficos, o efeito da tarefa B é visível: depois de cada parada o ingênuo continua no ritmo do pneu velho, e a GRU já começa no ritmo do pneu novo. A cobertura nas duas corridas (88–90%) passa um pouco do alvo de 80%: aqui o intervalo é largo demais.
 
+### Serviço ao vivo: leitura do f1-dash e histórico de voltas
+
+- `live/feed.py`: duas fontes do estado da corrida com a mesma saída. `HttpSource` lê o `localhost:4000/api/current` do f1-dash a cada 3 s e trata o `{}` (sem sessão ou sem conexão) como "aguardando". `ReplaySource` reproduz uma gravação no formato do simulador do f1-dash, aplicando as atualizações com a mesma regra de merge do serviço `realtime` (portada do Rust), para testar sem sessão ao vivo.
+- `live/laps.py`: monta o histórico de voltas, porque o feed só traz a última. Quando o contador de voltas de um piloto avança, a volta vira uma linha com tempo, setores, speed traps, composto, stint, idade do pneu, posição, gaps, status de pista (todos os códigos vistos na volta), entrada e saída dos boxes e clima, com os nomes de coluna do treino.
+- `live/reader.py`: liga as duas partes e grava `data/live/<ano>_<circuito>_<sessão>/laps.parquet` a cada volta, com escrita atômica.
+- **Validação com o GP da Alemanha de 2019**, gravado na pasta do f1-dash: as 1.054 voltas reproduzidas batem uma a uma (piloto e volta) com o Jolpica, e 1.027 dos 1.034 tempos são idênticos ao milésimo. As 7 diferenças estão nas voltas finais, e a soma dos setores do próprio feed confirma o valor ao vivo.
+- Dois defeitos de sincronia do feed, encontrados na validação e corrigidos:
+  - às vezes o contador de voltas avança antes do tempo da volta ser atualizado. A volta fica pendente até o tempo mudar; se a volta seguinte terminar antes, usa a soma dos setores;
+  - a idade do pneu (`TotalLaps`) chega atrasada. Ela passou a ser contada no próprio leitor, volta a volta, a partir das voltas que o jogo já tinha; como no FastF1, a volta de entrada fica no stint antigo e a de saída começa em 1.
+- **Intervalo de leitura:** no replay, ler o estado a cada 1, 3, 5 ou 10 s dá exatamente o mesmo histórico; a cada 30 s, setores e idade do pneu começam a errar. O padrão ficou em 3 s.
+- O caminho HTTP foi testado de ponta a ponta subindo o simulador e o `realtime` do f1-dash com a gravação de 2019: a sessão é detectada e as voltas são gravadas. O teste foi acelerado (~30×), o que equivale a ler a cada ~30 s de corrida e explica as diferenças de setores nesse teste.
+
 ### Correção no pipeline: volta limpa calculável ao vivo
 
 - A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.

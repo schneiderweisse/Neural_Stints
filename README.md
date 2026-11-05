@@ -54,6 +54,8 @@ py pipeline/fetch_tracinginsights.py
 .venv/Scripts/python -m pipeline.race_laps
 .venv/Scripts/python -m pipeline.sequences
 .venv/Scripts/python -m modeling.naive      # baseline ingênuo -> runs/naive_<data>/
+.venv/Scripts/python -m modeling.gru        # GRU encoder–decoder -> runs/gru_<data>_s1/ (~2 min em CPU)
+.venv/Scripts/python -m modeling.backtest   # relatório GRU × ingênuo (Austin e México) -> runs/gru_.../backtest.html
 ```
 
 No macOS ou Linux, use `python3` e `.venv/bin/python`.
@@ -90,8 +92,8 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Seg 2 – Ter 3 | Atualização dos dados de 2026 até o GP do México | ✅ |
 | Seg 2 – Ter 3 | Tabela de voltas, flags de limpeza, alvo relativo ao quali e sequências encoder/decoder | ✅ |
 | Qua 4 | Baseline ingênuo (feito na quinta, 5/11) | ✅ |
-| Qua 4 | GRU v0 | ⏳ |
-| Qua 4 | Backtest em Austin e México | ⏳ |
+| Qua 4 | GRU v0 (feita na quinta, 5/11) | ✅ |
+| Qua 4 | Backtest em Austin e México (feito na quinta, 5/11) | ✅ |
 | Qui 5 | Serviço ao vivo: leitura do f1-dash, histórico de voltas, gravador das sessões | ⏳ |
 | Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |
 | Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 | ⏳ |

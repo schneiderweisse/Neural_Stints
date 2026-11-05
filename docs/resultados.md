@@ -15,6 +15,9 @@ runs/<modelo>_<aaaammdd>_s<semente>/     ex.: runs/gru_20261104_s1/
   predictions.parquet  a tabela padrão de previsões
   metrics.json         o resumo das métricas, calculado a partir da tabela
   model.pt             pesos e normalização, usados na previsão ao vivo (só redes)
+  backtest.html        relatório interativo contra o ingênuo em corridas do teste (modeling.backtest)
+  backtest_drivers.csv erro por piloto no backtest
+  backtest_summary.json resumo do backtest por corrida
 ```
 
 ### `predictions.parquet`

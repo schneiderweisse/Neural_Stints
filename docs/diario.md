@@ -17,6 +17,35 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
   O viés positivo é esperado: o carro fica mais rápido à medida que queima combustível, e o ingênuo repete o ritmo atual. O erro é bem maior depois de uma parada (1,37 s no teste) do que no mesmo stint (0,64 s), que é onde a rede tem mais a ganhar.
 
+### GRU v0
+
+- `modeling/gru.py`: GRU encoder–decoder com saída quantílica. O contexto estático (embeddings de circuito, piloto, equipe-ano e regulamento, mais as estáticas numéricas) inicializa o encoder e entra no decoder a cada passo. O decoder recebe só as variáveis conhecidas das voltas futuras. A saída tem p10 ≤ p50 ≤ p90 por construção (p50 mais e menos incrementos positivos). O encoder lê cada corrida uma vez e todas as previsões da sequência partem dos seus estados.
+- Treino: perda pinball nas voltas limpas, alvo padronizado pela média e desvio do treino, Adam (taxa 0,001), corte do gradiente pela norma (1,0), dropout 0,1, estado de 64, contexto de 16, lotes de 32 sequências, early stopping pela perda de validação (paciência 8). Para que circuitos e pilotos novos tenham um embedding razoável, 10% das categorias são trocadas por `<unk>` no treino. São 41.365 parâmetros; o treino parou na época 21 (melhor época: 13), com ~6,5 s por época em CPU e 2 min e 17 s no total.
+- Resultado (`runs/gru_20261105_s1`), contra o ingênuo:
+
+  | Divisão | MAE GRU | MAE ingênuo | Skill | MAE h = 1 | MAE h = 10 | Viés | Cobertura 80% |
+  |---|---|---|---|---|---|---|---|
+  | Validação | 0,533 s | 0,725 s | +27% | 0,41 s | 0,60 s | −0,03 s | 78% |
+  | Teste | 0,567 s | 0,732 s | +23% | 0,43 s | 0,66 s | +0,05 s | 80% |
+
+  - O ganho cresce com o horizonte (skill de +15% em h = 1 e +29% em h = 10 no teste) e o viés do ingênuo (+0,3 s, o efeito do combustível) praticamente desaparece.
+  - **Depois de uma parada (tarefa B), o erro cai pela metade:** 0,66 s contra 1,37 s do ingênuo no teste. A rede prevê o ganho do pneu novo a partir do cenário que o decoder recebe.
+  - O intervalo p10–p90 está bem calibrado: cobre 80% das voltas no teste, com 13% abaixo do p10 e 93% abaixo do p90 (ideais: 10% e 90%).
+  - Por corrida do teste: Austin 0,48 s (ingênuo 0,69 s) e México 0,38 s (ingênuo 0,52 s). O pior caso é Madring (0,87 s, cobertura de 59%), circuito novo que a rede só conhece como `<unk>`.
+
+### Backtest em Austin e México
+
+- `modeling/backtest.py` gera `runs/gru_20261105_s1/backtest.html`: erro por horizonte nas duas corridas, indicadores por corrida, gráficos volta a volta dos três primeiros colocados e uma tabela de erro por piloto. Os gráficos mostram as previsões feitas ao fim das voltas 10, 20, 30… para as 10 voltas seguintes (mediana e faixa p10–p90 da GRU, o ingênuo e os tempos reais), com as paradas e as voltas de SC/VSC marcadas.
+- As figuras ficam em `modeling/figures.py`, em Plotly, para serem reaproveitadas no painel. Cores fixas por papel (real em preto, GRU em azul, ingênuo em laranja), validadas para daltonismo.
+- Resultados, nas voltas limpas previstas pelos dois modelos:
+
+  | Corrida | MAE GRU | MAE ingênuo | Melhora | Cobertura p10–p90 | Depois de uma parada (GRU × ingênuo) |
+  |---|---|---|---|---|---|
+  | Austin | 0,469 s | 0,691 s | +32% | 88% | 0,52 s × 1,53 s |
+  | México | 0,379 s | 0,521 s | +27% | 90% | 0,48 s × 1,03 s |
+
+  A GRU melhora sobre o ingênuo para todos os pilotos do pódio. Nos gráficos, o efeito da tarefa B é visível: depois de cada parada o ingênuo continua no ritmo do pneu velho, e a GRU já começa no ritmo do pneu novo. A cobertura nas duas corridas (88–90%) passa um pouco do alvo de 80%: aqui o intervalo é largo demais.
+
 ### Correção no pipeline: volta limpa calculável ao vivo
 
 - A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.

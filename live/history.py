@@ -141,15 +141,17 @@ def race_features(live: pd.DataFrame, ref: pd.DataFrame, year: int, event: str, 
                   race_id: str = "live") -> pd.DataFrame:
     """Voltas ao vivo de uma corrida com as colunas de data/processed/race_laps.parquet."""
     race = fill_missing_laps(live)
+    announced = race["laps_total"].astype(float).to_numpy()   # add_features troca pela maior volta vista
     race["year"], race["event"], race["circuit"], race["race_id"] = year, event, circuit, race_id
     race["race_label"] = f"{year} {circuit}"
     race["deleted"] = race["deleted"].fillna(False).astype(bool) if "deleted" in race else False
     race["generated"] = False
+    race["laps_announced"] = announced
     race = rl.add_reference(race, ref)
     race = rl.add_flags(race)
     race = rl.add_features(race)
     # progresso pela distância anunciada no feed (a corrida ainda não acabou)
-    total = race["laps_total"].astype(float)
+    total = race["laps_announced"].fillna(race["laps_total"]).astype(float)
     race["laps_total"] = total
     race["laps_remaining"] = total - race["lap"]
     race["race_progress"] = race["lap"] / total

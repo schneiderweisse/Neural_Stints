@@ -169,7 +169,10 @@ class LapTracker:
             tr.pit_out |= (tr.in_pit_now and not in_pit) or bool(line.get("PitOut"))
             tr.in_pit_now = in_pit
             n = int(line.get("NumberOfLaps") or 0)
-            if n > tr.laps:
+            if n > tr.laps and (num, n) in self.by_key:       # já gravada (retomada de uma fonte que recomeçou)
+                tr.laps, tr.last_time = n, last_time
+                tr.statuses, tr.pit_in, tr.pit_out = ({status} if status else set()), False, in_pit
+            elif n > tr.laps:
                 if tr.pending is not None:                       # o tempo nunca chegou: soma dos setores
                     p = tr.pending
                     if None not in (p["s1"], p["s2"], p["s3"]):

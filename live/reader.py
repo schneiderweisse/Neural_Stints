@@ -9,6 +9,7 @@ Uso, a partir da pasta Neural_Stints:
     .venv/Scripts/python -m live.reader --replay <gravação> [--speed 30]
 """
 import argparse
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,15 @@ def save(tracker: LapTracker, out_dir: Path) -> Path:
     df = df.sort_values(["driver_number", "lap"], key=lambda s: pd.to_numeric(s) if s.name == "driver_number" else s)
     write_atomic(path, lambda p: df.to_parquet(p, index=False))
     return path
+
+
+def save_session_info(state: dict, out_dir: Path) -> None:
+    """session.json: o SessionInfo do feed (GP, circuito, tipo e data), usado pelo live.predict."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    info = dict(state.get("SessionInfo") or {})
+    info["TotalLaps"] = (state.get("LapCount") or {}).get("TotalLaps")
+    write_atomic(out_dir / "session.json",
+                 lambda p: p.write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8"))
 
 
 def load_laps(out_root: Path, session: str) -> list[dict]:
@@ -54,8 +64,10 @@ def run(source, out_root: Path = LIVE, quiet: bool = False) -> LapTracker:
         waiting = False
         before = tracker.session
         new = tracker.update(state, clock)
-        if tracker.session != before and not quiet:
-            print(f"sessão: {tracker.session}")
+        if tracker.session != before and tracker.session:
+            save_session_info(state, out_root / tracker.session)
+            if not quiet:
+                print(f"sessão: {tracker.session}")
         if new and tracker.session:
             path = save(tracker, out_root / tracker.session)
             if not quiet:

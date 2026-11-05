@@ -58,11 +58,16 @@ py pipeline/fetch_tracinginsights.py
 .venv/Scripts/python -m modeling.backtest   # relatório GRU × ingênuo (Austin e México) -> runs/gru_.../backtest.html
 ```
 
-Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), dois processos ficam no ar, cada um no seu terminal: o gravador salva o fluxo bruto em `data/live/<ano>_<circuito>_<sessão>/recording.jsonl`, e o leitor monta o histórico de voltas em `laps.parquet` na mesma pasta. A gravação segue o formato do simulador do f1-dash, então serve tanto para o replay do projeto quanto para rever a sessão no próprio painel do f1-dash:
+Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), três processos ficam no ar, cada um no seu terminal, gravando em `data/live/<ano>_<circuito>_<sessão>/`:
+
+- o **gravador** salva o fluxo bruto em `recording.jsonl`, no formato do simulador do f1-dash (serve para o replay do projeto e para rever a sessão no próprio painel do f1-dash);
+- o **leitor** monta o histórico de voltas em `laps.parquet` (e os dados da sessão em `session.json`);
+- o **previsor** roda a GRU a cada volta nova e grava `predictions.parquet` no formato padrão, preenchendo o valor real de cada volta prevista quando ela termina. Só funciona em corridas e sprints, que têm total de voltas.
 
 ```bash
 .venv/Scripts/python -m live.recorder                     # grava a sessão (SSE do f1-dash)
 .venv/Scripts/python -m live.reader                       # ao vivo, lendo o f1-dash a cada 3 s
+.venv/Scripts/python -m live.predict                      # previsões na corrida mais recente
 .venv/Scripts/python -m live.reader --replay <gravação>   # reprodução de uma corrida gravada
 .venv/Scripts/python -m live.history 2026_19              # confere: caminho ao vivo × pipeline numa corrida do treino
 ```
@@ -109,7 +114,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Qui 5 | Serviço ao vivo: leitura do f1-dash | ✅ |
 | Qui 5 | Serviço ao vivo: histórico de voltas (retomada, voltas deletadas, variáveis do treino) | ✅ |
 | Qui 5 | Serviço ao vivo: gravador das sessões | ✅ |
-| Qui 5 | Serviço ao vivo: previsões da GRU sobre o histórico | ⏳ |
+| Qui 5 | Serviço ao vivo: previsões da GRU sobre o histórico | ✅ |
 | Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |
 | Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 | ⏳ |
 | Dom 8 | 🔴 **GP de São Paulo (14h00):** v0 ao vivo e gravação da corrida | ⏳ |

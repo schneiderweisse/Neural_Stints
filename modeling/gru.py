@@ -63,10 +63,29 @@ class Seq2SeqGRU(nn.Module):
         dec_in = torch.cat([dec_in, ctx[:, None, None].expand(B, T, horizon, -1)], dim=3)
         h_start = self.drop(h_all[:, :T]).reshape(1, B * T, -1)
         out, _ = self.decoder(dec_in.reshape(B * T, horizon, -1), h_start.contiguous())
-        o = self.head(self.drop(out)).reshape(B, T, horizon, 3)
+        return self.quantiles(self.head(self.drop(out)).reshape(B, T, horizon, 3))
+
+    @staticmethod
+    def quantiles(o):
         p50 = o[..., 0]
         return torch.stack([p50 - nn.functional.softplus(o[..., 1]), p50,
                             p50 + nn.functional.softplus(o[..., 2])], dim=-1)
+
+    def forecast(self, enc_x, future_known, static_cat, static_x):
+        """Previsão ao vivo: a partir do fim da última volta de enc_x, para as voltas de future_known.
+
+        enc_x (B, t, obs+known), future_known (B, H, known) -> quantis (B, H, 3). É o mesmo cálculo
+        de forward para a âncora t, sem precisar das voltas futuras reais.
+        """
+        B, L, _ = enc_x.shape
+        H = future_known.shape[1]
+        emb = [e(static_cat[:, i]) for i, e in enumerate(self.embs)]
+        ctx = self.context(torch.cat(emb + [static_x], dim=1))
+        enc_in = torch.cat([enc_x, ctx[:, None].expand(B, L, -1)], dim=2)
+        _, h_last = self.encoder(enc_in, torch.tanh(self.h0(ctx))[None])
+        dec_in = torch.cat([future_known, ctx[:, None].expand(B, H, -1)], dim=2)
+        out, _ = self.decoder(dec_in, self.drop(h_last))
+        return self.quantiles(self.head(self.drop(out)))
 
 
 def pinball(pred, y, mask):

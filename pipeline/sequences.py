@@ -46,9 +46,8 @@ GAP_CLIP = {"gap_ahead": (0, 30), "gap_leader": (0, 120)}
 Z_CLIP = 10.0         # voltas de SC e de pit ficam a ~20 desvios-padrão das voltas limpas
 
 
-def prepare(race: pd.DataFrame) -> pd.DataFrame:
-    race = race[~race["race_wet"] & race["ref_lap"].notna()].copy()
-    race = race.sort_values(["year", "round", "driver", "lap"]).reset_index(drop=True)
+def model_columns(race: pd.DataFrame) -> pd.DataFrame:
+    """Colunas derivadas que a rede usa; as mesmas no treino e ao vivo (live/predict.py)."""
     for c, (lo, hi) in GAP_CLIP.items():
         race[c] = race[c].clip(lo, hi)
     race.loc[race["position"] == 1, "gap_ahead"] = GAP_CLIP["gap_ahead"][1]   # líder: pista livre
@@ -57,6 +56,12 @@ def prepare(race: pd.DataFrame) -> pd.DataFrame:
     race["team_year"] = race["team"].astype(str) + " " + race["year"].astype(str)
     race["seq_id"] = race["race_id"] + "_" + race["driver"].astype(str)
     return race
+
+
+def prepare(race: pd.DataFrame) -> pd.DataFrame:
+    race = race[~race["race_wet"] & race["ref_lap"].notna()].copy()
+    race = race.sort_values(["year", "round", "driver", "lap"]).reset_index(drop=True)
+    return model_columns(race)
 
 
 def split_races(race: pd.DataFrame) -> tuple[dict[str, list[str]], dict[str, str]]:

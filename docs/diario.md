@@ -80,6 +80,18 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
   - Reproduzida pelo próprio simulador do f1-dash, o painel carrega a sessão e as atualizações chegam até as voltas. O simulador anda mais devagar que o fator pedido no Windows (cada pausa curta vira ~15 ms), o que não afeta a gravação.
 - O `simulator save` do f1-dash não foi usado: pelo código, ele passa host e hub trocados em relação ao `realtime` e provavelmente não conecta no feed ao vivo.
 
+### Serviço ao vivo: previsões da GRU
+
+- `live/predict.py` acompanha o `laps.parquet` da corrida e, a cada volta nova de um piloto, prevê as 10 voltas seguintes no cenário A (mesmo pneu, sem parada). Grava `predictions.parquet` no formato padrão (`split = live`, mais `predicted_at`, `scenario` e o run do modelo) e preenche o valor real de cada volta prevista quando ela termina, o que dá o erro ao vivo.
+- **Mesmo cálculo do treino:** as variáveis vêm de `live/history.py`, a codificação usa a normalização e os vocabulários guardados no `model.pt`, e as colunas derivadas saem de `pipeline.sequences.model_columns`, separada do `prepare` para os dois caminhos usarem o mesmo código (o `dataset.npz` refeito ficou idêntico). A GRU ganhou `forecast()`, que prevê a partir da última volta conhecida sem precisar das voltas futuras; ele dá o mesmo resultado do `forward` do treino (diferença de 1e-7).
+- O leitor passou a gravar `session.json` (GP, circuito, data e total de voltas), de onde o previsor tira o circuito (pelo `circuits.csv`) e a referência do fim de semana.
+- Não há previsão na volta de entrada nos boxes (o pneu ainda vai mudar) nem em treinos livres (sem total de voltas).
+- **Validação com o México 2026:** refazendo a corrida pelo caminho ao vivo, as previsões são idênticas às do backtest (diferença máxima de 2e-8 em p10, p50 e p90) em todas as janelas sem parada no horizonte, que são as em que o cenário A coincide com o que aconteceu. Contando todas as janelas, o erro ao vivo seria de 0,443 s, com cobertura de 83%.
+- **Modo contínuo com a Alemanha 2019:** com o histórico crescendo volta a volta, foram 943 previsões, com valor real preenchido à medida que as voltas terminavam, e ~0,4 s por atualização (máximo de 1,5 s), folgado para leituras a cada 3 s.
+- Dois defeitos encontrados e corrigidos:
+  - o total de voltas anunciado no feed era trocado pela maior volta já disputada, então ao vivo a rede acharia que a corrida terminava na volta atual. O teste de paridade não pegava porque lá a corrida estava completa;
+  - um leitor reiniciado contra uma fonte que recomeça do início (como um replay) duplicava voltas já gravadas. Volta já gravada não entra de novo.
+
 ### Correção no pipeline: volta limpa calculável ao vivo
 
 - A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.

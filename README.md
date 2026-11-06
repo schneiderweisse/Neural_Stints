@@ -78,6 +78,8 @@ O painel tem três abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sess�
 .venv/Scripts/streamlit run dashboard/app.py              # http://localhost:8501
 ```
 
+O cabeçalho mostra os logos da F1 e da UnB se os arquivos estiverem em `dashboard/assets/` (ver o README da pasta). Por serem marcas registradas, eles ficam fora do git.
+
 Se o leitor for reiniciado no meio da sessão, ele retoma o histórico já gravado. O `live/history.py` transforma esse histórico nas variáveis do treino, usando as mesmas funções do pipeline.
 
 No macOS ou Linux, use `python3` e `.venv/bin/python`.

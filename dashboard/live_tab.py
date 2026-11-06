@@ -92,7 +92,20 @@ def timing_table(state: dict) -> str:
     return "".join(out)
 
 
-def session_header(state: dict, clock_label: str = "") -> str:
+FINISHED = {"Finished", "Finalised", "Ends"}
+
+
+def badge(state: dict, mode: str) -> str:
+    """Selo ao lado do título: ponto vermelho piscando quando os dados chegam ao vivo do f1-dash."""
+    if mode == "live":
+        if str(sub(state, "SessionStatus", "Status") or "") in FINISHED:
+            return "<span class='live-badge off'><span class='pulse'></span>SESSÃO ENCERRADA</span>"
+        return "<span class='live-badge on'><span class='pulse'></span>AO VIVO</span>"
+    label = "REPRODUZINDO GRAVAÇÃO" if mode == "playing" else "GRAVAÇÃO"
+    return f"<span class='live-badge off'><span class='pulse'></span>{label}</span>"
+
+
+def session_header(state: dict, clock_label: str = "", mode: str = "live") -> str:
     info = state.get("SessionInfo") or {}
     title = f"{sub(info, 'Meeting', 'Name') or ''} · {info.get('Name', '')}"
     circuit = sub(info, "Meeting", "Circuit", "ShortName") or ""
@@ -106,7 +119,7 @@ def session_header(state: dict, clock_label: str = "") -> str:
     weather = f"ar {w.get('AirTemp', '—')} °C · pista {w.get('TrackTemp', '—')} °C · umidade {w.get('Humidity', '—')}%{rain}"
     status = str(sub(state, "SessionStatus", "Status") or "")
     extra = f" · {clock_label}" if clock_label else ""
-    return (f"<div class='session'><div class='title'>{html.escape(title)}</div>"
+    return (f"<div class='session'><div class='title'>{badge(state, mode)}{html.escape(title)}</div>"
             f"<div class='meta'>{html.escape(circuit)} · {html.escape(progress)} · {html.escape(weather)}"
             f"{(' · ' + html.escape(status)) if status else ''}{html.escape(extra)}</div>"
             f"<span class='flag' style='border-color:{color};color:{color}'>{html.escape(label)}</span></div>")
@@ -117,8 +130,8 @@ def team_colors(state: dict) -> dict[str, str]:
             if isinstance(d, dict)}
 
 
-def render_body(state: dict, session_dir, clock: float | None, clock_label: str = "") -> None:
-    st.markdown(session_header(state, clock_label), unsafe_allow_html=True)
+def render_body(state: dict, session_dir, clock: float | None, clock_label: str = "", mode: str = "live") -> None:
+    st.markdown(session_header(state, clock_label, mode), unsafe_allow_html=True)
     st.markdown(timing_table(state), unsafe_allow_html=True)
 
     laps = data.read_parquet_fresh(session_dir / "laps.parquet") if session_dir else None
@@ -191,6 +204,6 @@ def render() -> None:
         idx = st.select_slider("Momento da gravação", options=list(range(len(snaps))), key="rec_idx",
                                format_func=lambda i: f"{snaps[i][0] / 60:.1f} min")
         clock, state = snaps[idx]
-        render_body(state, rec.parent, clock, f"gravação {clock / 60:.0f} min")
+        render_body(state, rec.parent, clock, f"gravação {clock / 60:.0f} min", "playing" if play else "recorded")
 
     recorded_view()

@@ -12,6 +12,16 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 - Os dois pilotos usam cores validadas para daltonismo, e o segundo também tem linha tracejada e marcador em losango.
 - A corrida de Madring foi tirada da lista desta aba, a pedido.
 
+### Painel: visual
+
+- **Cabeçalho:** logos da F1 (à esquerda, o atual em vermelho) e da UnB (à direita, a versão para fundo escuro), lidos de `dashboard/assets/`. Os arquivos vêm do Wikimedia Commons (fontes no README da pasta); por serem marcas registradas, ficam fora do git. Sem eles, o painel funciona igual.
+- **Selo ao lado do título da sessão:**
+  - **AO VIVO**, com um ponto vermelho piscando, quando os dados chegam do f1-dash;
+  - **SESSÃO ENCERRADA** (cinza) quando a sessão terminou;
+  - **GRAVAÇÃO** ou **REPRODUZINDO GRAVAÇÃO** (cinza, parado) no modo gravado.
+  A animação é desligada para quem pede menos movimento no sistema. Testado com o simulador e o `realtime` do f1-dash servindo a corrida de 2019 como se fosse ao vivo.
+- **Rodapé:** "Eduardo Schneider Arruda · engenheiro de computação e pesquisador, graduando de Estatística pela UnB", com a disciplina e o aviso de projeto não oficial.
+
 ### Nova divisão: teste com as 3 últimas corridas, e a GRU retreinada
 
 - **Divisão nova, ainda cronológica:**

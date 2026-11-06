@@ -13,6 +13,10 @@
 /docs/make_preparacao_teorica.py
 /docs/grifos_cap10.json
 
+# Logos (marcas registradas): ficam só na máquina local
+/dashboard/assets/*
+!/dashboard/assets/README.md
+
 # Modelos treinados e saídas pesadas
 /models/
 /runs/

@@ -72,6 +72,12 @@ Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), tr�
 .venv/Scripts/python -m live.history 2026_19              # confere: caminho ao vivo × pipeline numa corrida do treino
 ```
 
+O painel tem duas abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sessão gravada: cronometragem, tempos de volta e, na corrida, as previsões da GRU) e **GRU v0** (métricas, gráficos e exemplos do modelo treinado contra o ingênuo):
+
+```bash
+.venv/Scripts/streamlit run dashboard/app.py              # http://localhost:8501
+```
+
 Se o leitor for reiniciado no meio da sessão, ele retoma o histórico já gravado. O `live/history.py` transforma esse histórico nas variáveis do treino, usando as mesmas funções do pipeline.
 
 No macOS ou Linux, use `python3` e `.venv/bin/python`.
@@ -81,7 +87,8 @@ No macOS ou Linux, use `python3` e `.venv/bin/python`.
 ```
 pipeline/   scripts de coleta e preparação dos dados
 modeling/   modelos (baselines e redes) e cálculo das métricas
-live/       leitura do live timing (f1-dash ou gravação) e histórico de voltas ao vivo
+live/       leitura do live timing (f1-dash ou gravação), gravador, histórico e previsões ao vivo
+dashboard/  painel Streamlit (abas Ao Vivo e GRU v0)
 runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)
 docs/       documentos e figuras do projeto
@@ -115,6 +122,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Qui 5 | Serviço ao vivo: histórico de voltas (retomada, voltas deletadas, variáveis do treino) | ✅ |
 | Qui 5 | Serviço ao vivo: gravador das sessões | ✅ |
 | Qui 5 | Serviço ao vivo: previsões da GRU sobre o histórico | ✅ |
+| Qui 5 | Painel Streamlit: abas Ao Vivo e GRU v0 (antecipado das semanas 2 e 3) | ✅ |
 | Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |
 | Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 | ⏳ |
 | Dom 8 | 🔴 **GP de São Paulo (14h00):** v0 ao vivo e gravação da corrida | ⏳ |

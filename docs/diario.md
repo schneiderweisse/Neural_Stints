@@ -92,6 +92,15 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
   - o total de voltas anunciado no feed era trocado pela maior volta já disputada, então ao vivo a rede acharia que a corrida terminava na volta atual. O teste de paridade não pegava porque lá a corrida estava completa;
   - um leitor reiniciado contra uma fonte que recomeça do início (como um replay) duplicava voltas já gravadas. Volta já gravada não entra de novo.
 
+### Painel Streamlit (v0)
+
+- `dashboard/app.py`, com tema escuro nas cores do GitHub (`.streamlit/config.toml` e um pouco de CSS) e duas abas:
+  - **Ao Vivo:** escolhe a fonte, "f1-dash ao vivo" (lê `/api/current` a cada 3 s, só leitura) ou "sessão gravada" (reproduz uma gravação de `data/live/`, com controle de momento e botão de reproduzir). Mostra o cabeçalho da sessão (GP, volta ou tempo restante, clima e status da pista), uma tabela de cronometragem no estilo do f1-dash (posição, piloto na cor da equipe, melhor e última volta, gaps, setores com roxo e verde, pneu e idade, paradas, box/abandono), os tempos de volta dos pilotos escolhidos com o composto em cada ponto e, na corrida, a previsão mais recente da GRU para o piloto escolhido, com o erro ao vivo acumulado.
+  - **GRU v0:** indicadores do teste (MAE, melhora sobre o ingênuo, cobertura, erro depois da parada, tamanho e treino), erro por horizonte na validação e no teste, calibração do intervalo por horizonte, curva de treino, erro por composto e por tarefa A × B, tabela por corrida e exemplos volta a volta de qualquer corrida e piloto da validação e do teste.
+- As figuras de `modeling/figures.py` passaram a aceitar tema claro (relatório de backtest) e escuro (painel); as cores do GRU e do ingênuo foram validadas para daltonismo nos dois fundos.
+- A gravação do GP da Alemanha de 2019 foi copiada para `data/live/2019_hockenheim_race/` (fora do git), para a aba Ao Vivo ter uma sessão gravada para testar sem sessão ao vivo.
+- Conferido no navegador: a cronometragem mostra os 20 carros, os gráficos das duas abas renderizam sem erro, e a seção de previsões aparece quando há `predictions.parquet` (testada com um arquivo temporário, já apagado).
+
 ### Correção no pipeline: volta limpa calculável ao vivo
 
 - A flag `clean` usa a mediana da corrida inteira (corte de 107%), que não existe durante a corrida. Ela entrava como variável de entrada da rede e no cálculo dos speed traps relativos, um pequeno vazamento de informação do futuro.

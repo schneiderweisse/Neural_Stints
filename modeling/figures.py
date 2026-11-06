@@ -1,40 +1,68 @@
-"""Figuras Plotly dos resultados, reaproveitáveis no relatório de backtest e no painel.
+"""Figuras Plotly dos resultados, reaproveitadas no relatório de backtest (tema claro) e no painel (escuro).
 
-Cores com papel fixo (validadas para daltonismo): real em tinta neutra, GRU em azul, ingênuo em laranja.
+Cores com papel fixo (validadas para daltonismo nos dois temas): real em tinta neutra, GRU em azul,
+ingênuo em laranja. Compostos nas cores convencionais da F1.
 """
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-SURFACE, INK, INK2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
-GRID, AXIS = "#e1e0d9", "#c3c2b7"
-GRU, NAIVE = "#2a78d6", "#eb6834"
-BAND = "rgba(42,120,214,0.16)"
-NEUTRAL_SHADE = "rgba(137,135,129,0.14)"
 FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
-MODEL_STYLE = {"gru": ("GRU v0", GRU, "solid"), "naive": ("Ingênuo", NAIVE, "dash")}
+THEMES = {
+    "light": dict(surface="#fcfcfb", ink="#0b0b0b", ink2="#52514e", muted="#898781", grid="#e1e0d9", axis="#c3c2b7",
+                  gru="#2a78d6", naive="#eb6834", band="rgba(42,120,214,0.16)", shade="rgba(137,135,129,0.14)",
+                  hover="#ffffff", hard="#52514e"),
+    "dark": dict(surface="#0d1117", ink="#e6edf3", ink2="#c9d1d9", muted="#7d8590", grid="#21262d", axis="#30363d",
+                 gru="#3987e5", naive="#d95926", band="rgba(57,135,229,0.22)", shade="rgba(125,133,144,0.18)",
+                 hover="#161b22", hard="#e6edf3"),
+}
+COMPOUND = {"SOFT": "#f85149", "MEDIUM": "#d29922", "INTERMEDIATE": "#3fb950", "WET": "#2f81f7"}
+COMPOUND_LETTER = {"SOFT": "S", "MEDIUM": "M", "HARD": "H", "INTERMEDIATE": "I", "WET": "W"}
+
+
+def colors(theme: str) -> dict:
+    return THEMES[theme]
+
+
+def compound_color(compound, theme: str) -> str:
+    return COMPOUND.get(str(compound).upper(), THEMES[theme]["hard"])
+
+
+def model_style(model: str, theme: str) -> tuple[str, str, str]:
+    c = THEMES[theme]
+    return {"gru": ("GRU v0", c["gru"], "solid"), "naive": ("Ingênuo", c["naive"], "dash")}[model]
 
 
 def fmt_lap(seconds: float) -> str:
-    m, s = divmod(seconds, 60)
+    if seconds is None or pd.isna(seconds):
+        return ""
+    m, s = divmod(float(seconds), 60)
     return f"{int(m)}:{s:06.3f}"
 
 
-def base_layout(fig: go.Figure, height: int) -> go.Figure:
-    fig.update_layout(height=height, paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, margin=dict(l=64, r=24, t=84, b=48),
-                      font=dict(family=FONT, color=INK2, size=12), hovermode="x unified",
-                      legend=dict(orientation="h", x=0, y=1, yref="container", yanchor="top", font=dict(color=INK2)),
-                      hoverlabel=dict(bgcolor="white", bordercolor=AXIS, font=dict(family=FONT, color=INK)))
-    fig.update_xaxes(gridcolor=GRID, linecolor=AXIS, zeroline=False, tickfont=dict(color=MUTED))
-    fig.update_yaxes(gridcolor=GRID, linecolor=AXIS, zeroline=False, tickfont=dict(color=MUTED))
+def base_layout(fig: go.Figure, height: int, theme: str = "light", top: int = 84) -> go.Figure:
+    c = THEMES[theme]
+    fig.update_layout(height=height, paper_bgcolor=c["surface"], plot_bgcolor=c["surface"],
+                      margin=dict(l=64, r=24, t=top, b=48), font=dict(family=FONT, color=c["ink2"], size=12),
+                      hovermode="x unified",
+                      legend=dict(orientation="h", x=0, y=1, yref="container", yanchor="top", font=dict(color=c["ink2"])),
+                      hoverlabel=dict(bgcolor=c["hover"], bordercolor=c["axis"], font=dict(family=FONT, color=c["ink"])))
+    fig.update_xaxes(gridcolor=c["grid"], linecolor=c["axis"], zeroline=False, tickfont=dict(color=c["muted"]))
+    fig.update_yaxes(gridcolor=c["grid"], linecolor=c["axis"], zeroline=False, tickfont=dict(color=c["muted"]))
+    for a in fig.layout.annotations:                       # títulos dos painéis
+        if a.font is None or a.font.color is None:
+            a.font = dict(color=c["ink"], size=13)
     return fig
 
 
-def mae_by_horizon(metrics: dict[str, dict], races: list[str], split: str = "test") -> go.Figure:
-    """MAE (s) por horizonte, um painel por corrida, uma linha por modelo."""
+def mae_by_horizon(metrics: dict[str, dict], races: list[str], theme: str = "light") -> go.Figure:
+    """MAE (s) por horizonte, um painel por corrida (ou divisão), uma linha por modelo."""
+    c = THEMES[theme]
     fig = make_subplots(rows=1, cols=len(races), shared_yaxes=True, subplot_titles=races, horizontal_spacing=0.06)
+    for a in fig.layout.annotations:
+        a.font = dict(color=c["ink"], size=13)
     for model, m in metrics.items():
-        name, color, dash = MODEL_STYLE[model]
+        name, color, dash = model_style(model, theme)
         for j, race in enumerate(races, start=1):
             by_h = m["races"][race]["by_h"]
             hs = sorted(by_h)
@@ -43,22 +71,75 @@ def mae_by_horizon(metrics: dict[str, dict], races: list[str], split: str = "tes
                                      line=dict(color=color, width=2, dash=dash), marker=dict(size=8, color=color),
                                      hovertemplate=f"{name}: %{{y:.2f}} s<extra></extra>"), row=1, col=j)
             fig.add_annotation(x=hs[-1], y=ys[-1], text=name, xanchor="left", xshift=8, showarrow=False,
-                               font=dict(color=INK2, size=11), row=1, col=j)
+                               font=dict(color=c["ink2"], size=11), row=1, col=j)
     fig.update_xaxes(title_text="voltas à frente (h)", dtick=1, range=[0.5, 12.5])
     fig.update_yaxes(title_text="MAE (s)", row=1, col=1, rangemode="tozero")
-    for a in fig.layout.annotations[: len(races)]:
-        a.font = dict(color=INK, size=13)
-    return base_layout(fig, 360)
+    return base_layout(fig, 360, theme)
+
+
+def coverage_by_horizon(by_h: dict[str, dict], theme: str = "dark") -> go.Figure:
+    """Cobertura do intervalo p10–p90 por horizonte, contra o alvo de 80%."""
+    c = THEMES[theme]
+    fig = go.Figure()
+    fig.add_hline(y=80, line=dict(color=c["muted"], width=1, dash="dot"))
+    fig.add_annotation(x=10.4, y=80, text="alvo 80%", xanchor="left", showarrow=False, font=dict(color=c["muted"], size=11))
+    styles = {"val": ("validação", "dash"), "test": ("teste", "solid")}
+    for split, values in by_h.items():
+        label, dash = styles[split]
+        hs = sorted(values)
+        fig.add_trace(go.Scatter(x=hs, y=[100 * values[h] for h in hs], name=label, mode="lines+markers",
+                                 line=dict(color=c["gru"], width=2, dash=dash), marker=dict(size=8, color=c["gru"]),
+                                 hovertemplate=f"{label}: %{{y:.1f}}%<extra></extra>"))
+    fig.update_xaxes(title_text="voltas à frente (h)", dtick=1, range=[0.5, 11.8])
+    fig.update_yaxes(title_text="cobertura (%)", range=[50, 100])
+    return base_layout(fig, 320, theme)
+
+
+def training_curve(history: pd.DataFrame, theme: str = "dark") -> go.Figure:
+    """Perda pinball de treino e validação por época, com a melhor época marcada."""
+    c = THEMES[theme]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=history["epoch"], y=history["train_loss"], name="treino", mode="lines+markers",
+                             line=dict(color=c["ink2"], width=2), marker=dict(size=6, color=c["ink2"]),
+                             hovertemplate="treino: %{y:.4f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=history["epoch"], y=history["val_loss"], name="validação", mode="lines+markers",
+                             line=dict(color=c["gru"], width=2), marker=dict(size=6, color=c["gru"]),
+                             hovertemplate="validação: %{y:.4f}<extra></extra>"))
+    best = history.loc[history["val_loss"].idxmin()]
+    fig.add_vline(x=best["epoch"], line=dict(color=c["muted"], width=1, dash="dot"))
+    fig.add_annotation(x=best["epoch"], y=1, yref="paper", text=f"melhor época ({int(best['epoch'])})", showarrow=False,
+                       yanchor="bottom", font=dict(color=c["muted"], size=11))
+    fig.update_xaxes(title_text="época")
+    fig.update_yaxes(title_text="perda pinball (padronizada)")
+    return base_layout(fig, 320, theme)
+
+
+def grouped_bars(categories: list[str], values: dict[str, list[float]], ytitle: str, theme: str = "dark") -> go.Figure:
+    """Barras lado a lado por categoria, uma cor por modelo (GRU × ingênuo)."""
+    fig = go.Figure()
+    for model, ys in values.items():
+        name, color, _ = model_style(model, theme)
+        fig.add_trace(go.Bar(x=categories, y=ys, name=name, marker=dict(color=color, cornerradius=4),
+                             text=[f"{y:.2f}" for y in ys], textposition="outside",
+                             hovertemplate=f"{name}: %{{y:.3f}} s<extra></extra>"))
+    fig.update_layout(barmode="group", bargap=0.35, bargroupgap=0.08)
+    fig.update_yaxes(title_text=ytitle, rangemode="tozero")
+    fig = base_layout(fig, 320, theme)
+    fig.update_layout(hovermode="closest")
+    return fig
 
 
 def stint_forecasts(laps: pd.DataFrame, preds: dict[str, pd.DataFrame], drivers: list[str], anchors: list[int],
-                    titles: list[str]) -> go.Figure:
+                    titles: list[str], theme: str = "light") -> go.Figure:
     """Previsões em blocos de 10 voltas para alguns pilotos de uma corrida.
 
     Para cada âncora t (ex.: 10, 20, 30…), mostra a previsão feita ao fim da volta t para t+1..t+10:
     a mediana e a faixa p10–p90 da GRU e o ingênuo, contra os tempos reais. Paradas marcadas.
     """
+    c = THEMES[theme]
     fig = make_subplots(rows=len(drivers), cols=1, shared_xaxes=True, subplot_titles=titles, vertical_spacing=0.07)
+    for a in fig.layout.annotations:
+        a.font = dict(color=c["ink"], size=13)
     for i, drv in enumerate(drivers, start=1):
         real = laps[laps["driver"] == drv].sort_values("lap")
         clean = real[real["clean"]]
@@ -70,7 +151,7 @@ def stint_forecasts(laps: pd.DataFrame, preds: dict[str, pd.DataFrame], drivers:
                     continue
                 # voltas não limpas (box, SC) não têm tempo comparável: a previsão some nelas
                 w.loc[~w["clean"], ["time_p10", "time_p50", "time_p90"]] = None
-                name, color, dash = MODEL_STYLE[model]
+                name, color, dash = model_style(model, theme)
                 first = (i == 1 and t == anchors[0])
                 if model == "gru":
                     # uma faixa por trecho contínuo de voltas limpas, para não atravessar as voltas de box
@@ -78,9 +159,8 @@ def stint_forecasts(laps: pd.DataFrame, preds: dict[str, pd.DataFrame], drivers:
                     for k, (_, seg) in enumerate(w[w["time_p50"].notna()].groupby(seg_id)):
                         fig.add_trace(go.Scatter(x=list(seg["lap"]) + list(seg["lap"])[::-1],
                                                  y=list(seg["time_p90"]) + list(seg["time_p10"])[::-1],
-                                                 mode="lines", fill="toself",
-                                                 fillcolor=BAND, line=dict(width=0), hoverinfo="skip",
-                                                 name="GRU p10–p90", legendgroup="band",
+                                                 mode="lines", fill="toself", fillcolor=c["band"], line=dict(width=0),
+                                                 hoverinfo="skip", name="GRU p10–p90", legendgroup="band",
                                                  showlegend=first and k == 0), row=i, col=1)
                     lo, hi = min(lo, w["time_p10"].min()), max(hi, w["time_p90"].max())
                 fig.add_trace(go.Scatter(x=w["lap"], y=w["time_p50"], mode="lines", name=name, legendgroup=model,
@@ -88,18 +168,77 @@ def stint_forecasts(laps: pd.DataFrame, preds: dict[str, pd.DataFrame], drivers:
                                          hovertemplate=f"{name}: %{{y:.2f}} s<extra></extra>"), row=i, col=1)
         fig.add_trace(go.Scatter(x=clean["lap"], y=clean["lap_time"], mode="markers", name="Real (volta limpa)",
                                  legendgroup="real", showlegend=i == 1,
-                                 marker=dict(size=6, color=INK, line=dict(width=1, color=SURFACE)),
+                                 marker=dict(size=6, color=c["ink"], line=dict(width=1, color=c["surface"])),
                                  hovertemplate="Real: %{y:.3f} s<extra></extra>"), row=i, col=1)
-        for lap in real.loc[real["pit_in"], "lap"]:
-            fig.add_vline(x=lap, line=dict(color=MUTED, width=1, dash="dot"), row=i, col=1)
-            fig.add_annotation(x=lap, y=0, yref=f"y{i if i > 1 else ''} domain", text="box", showarrow=False,
-                               xanchor="left", xshift=2, yanchor="bottom", font=dict(color=MUTED, size=10),
-                               row=i, col=1)
-        for lap in real.loc[real["neutralised"], "lap"]:
-            fig.add_vrect(x0=lap - 0.5, x1=lap + 0.5, fillcolor=NEUTRAL_SHADE, line_width=0, row=i, col=1)
+        add_pits_and_sc(fig, real, theme, row=i)
         pad = 0.25 * (hi - lo)
         fig.update_yaxes(range=[lo - pad, hi + pad], title_text="tempo (s)", row=i, col=1)
     fig.update_xaxes(title_text="volta", row=len(drivers), col=1)
-    for a in fig.layout.annotations[: len(drivers)]:
-        a.font = dict(color=INK, size=13)
-    return base_layout(fig, 290 * len(drivers) + 80)
+    return base_layout(fig, 290 * len(drivers) + 80, theme)
+
+
+def add_pits_and_sc(fig: go.Figure, real: pd.DataFrame, theme: str, row: int = 1) -> None:
+    """Linhas pontilhadas nas voltas de entrada nos boxes e faixas nas voltas de SC/VSC."""
+    c = THEMES[theme]
+    for lap in real.loc[real["pit_in"].fillna(False).astype(bool), "lap"]:
+        fig.add_vline(x=lap, line=dict(color=c["muted"], width=1, dash="dot"), row=row, col=1)
+        fig.add_annotation(x=lap, y=0, yref=f"y{row if row > 1 else ''} domain", text="box", showarrow=False,
+                           xanchor="left", xshift=2, yanchor="bottom", font=dict(color=c["muted"], size=10), row=row, col=1)
+    if "neutralised" in real:
+        for lap in real.loc[real["neutralised"].fillna(False).astype(bool), "lap"]:
+            fig.add_vrect(x0=lap - 0.5, x1=lap + 0.5, fillcolor=c["shade"], line_width=0, row=row, col=1)
+
+
+def lap_times(laps: pd.DataFrame, drivers: list[str], team_colors: dict[str, str], theme: str = "dark") -> go.Figure:
+    """Tempos de volta ao vivo: uma linha por piloto (cor da equipe), pontos na cor do composto."""
+    c = THEMES[theme]
+    fig = go.Figure()
+    shown_teams, seen_compounds = set(), set()
+    timed = laps[laps["lap_time"].notna() & (laps["driver"].isin(drivers))]
+    if timed.empty:
+        return base_layout(fig, 380, theme)
+    lo, hi = timed["lap_time"].quantile(0.02), timed["lap_time"].median() * 1.07
+    for drv in drivers:
+        d = timed[timed["driver"] == drv].sort_values("lap")
+        if d.empty:
+            continue
+        team = d["team"].iloc[-1]
+        dash = "dot" if team in shown_teams else "solid"            # companheiros de equipe: linha pontilhada
+        shown_teams.add(team)
+        color = team_colors.get(drv, c["ink2"])
+        fig.add_trace(go.Scatter(x=d["lap"], y=d["lap_time"], mode="lines", name=drv, line=dict(color=color, width=2, dash=dash),
+                                 hovertemplate=f"{drv}: %{{y:.3f}} s<extra></extra>"))
+        for comp, dc in d.groupby("compound"):
+            fig.add_trace(go.Scatter(x=dc["lap"], y=dc["lap_time"], mode="markers", name=COMPOUND_LETTER.get(comp, comp),
+                                     legendgroup=f"comp_{comp}", showlegend=comp not in seen_compounds, hoverinfo="skip",
+                                     marker=dict(size=8, color=compound_color(comp, theme), line=dict(width=1.5, color=c["surface"]))))
+            seen_compounds.add(comp)
+    fig.update_xaxes(title_text="volta")
+    fig.update_yaxes(title_text="tempo de volta (s)", range=[lo - 0.3, hi])
+    return base_layout(fig, 400, theme)
+
+
+def live_forecast(real: pd.DataFrame, pred: pd.DataFrame, title: str, theme: str = "dark") -> go.Figure:
+    """Voltas reais de um piloto e a previsão mais recente da GRU (mediana e faixa p10–p90)."""
+    c = THEMES[theme]
+    fig = go.Figure()
+    clean = real[real["lap_time"].notna()].sort_values("lap")
+    if not pred.empty:
+        fig.add_trace(go.Scatter(x=list(pred["lap"]) + list(pred["lap"])[::-1],
+                                 y=list(pred["time_p90"]) + list(pred["time_p10"])[::-1], mode="lines", fill="toself",
+                                 fillcolor=c["band"], line=dict(width=0), hoverinfo="skip", name="GRU p10–p90"))
+        fig.add_trace(go.Scatter(x=pred["lap"], y=pred["time_p50"], mode="lines+markers", name="GRU v0 (mediana)",
+                                 line=dict(color=c["gru"], width=2), marker=dict(size=6, color=c["gru"]),
+                                 hovertemplate="previsto: %{y:.3f} s<extra></extra>"))
+        fig.add_vline(x=pred["t"].iloc[0] + 0.5, line=dict(color=c["muted"], width=1, dash="dot"))
+    fig.add_trace(go.Scatter(x=clean["lap"], y=clean["lap_time"], mode="markers", name="real",
+                             marker=dict(size=7, color=c["ink"], line=dict(width=1, color=c["surface"])),
+                             hovertemplate="real: %{y:.3f} s<extra></extra>"))
+    if len(clean):
+        lo = min(clean["lap_time"].quantile(0.02), pred["time_p10"].min() if len(pred) else 1e9)
+        hi = max(clean["lap_time"].median() * 1.05, pred["time_p90"].max() if len(pred) else 0)
+        fig.update_yaxes(range=[lo - 0.3, hi + 0.3])
+    fig.update_layout(title=dict(text=title, font=dict(color=c["ink"], size=14), x=0, xanchor="left"))
+    fig.update_xaxes(title_text="volta")
+    fig.update_yaxes(title_text="tempo de volta (s)")
+    return base_layout(fig, 380, theme, top=96)

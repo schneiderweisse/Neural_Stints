@@ -5,3 +5,4 @@ pyarrow>=15
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 torch>=2.3
 plotly>=5.20
+streamlit>=1.40

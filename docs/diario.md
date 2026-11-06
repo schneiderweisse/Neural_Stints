@@ -2,6 +2,36 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 6 de novembro de 2026
+
+### Painel: aba Tarefas A e B
+
+- Nova aba `dashboard/tasks_tab.py`, com a corrida e até dois pilotos à escolha (só corridas da validação e do teste, que a rede não viu no treino):
+  - **Tarefa A:** escolhe o ponto de partida de cada piloto (o começo da corrida ou uma das paradas) e k de 1 a 10. Mostra a previsão feita naquele ponto para as k voltas seguintes, contra os tempos reais, com uma tabela volta a volta. Exemplo: "parou na volta 30, k = 5" mostra a previsão feita ao fim da volta 30 para as voltas 31 a 35.
+  - **Tarefa B:** escolhe um stint de cada piloto e vê o stint inteiro, coberto por previsões feitas no começo do stint e a cada 10 voltas (o horizonte da rede). A tabela traz MAE, viés, cobertura e a degradação real e a prevista (inclinação de uma reta ajustada ao tempo de volta ao longo do stint). No México 2026, segundo stint: Verstappen com degradação real de +0,027 s/volta e prevista de +0,028; Hamilton com +0,058 real e +0,031 prevista.
+- Os dois pilotos usam cores validadas para daltonismo, e o segundo também tem linha tracejada e marcador em losango.
+- A corrida de Madring foi tirada da lista desta aba, a pedido.
+
+### Nova divisão: teste com as 3 últimas corridas, e a GRU retreinada
+
+- **Divisão nova, ainda cronológica:**
+  - teste: Singapura, Austin e México 2026 (as 3 últimas corridas secas);
+  - validação: Zandvoort, Monza, Madring e Baku;
+  - treino: tudo até a Hungria 2026 (Spa e Hungaroring passaram para o treino).
+  A normalização e os vocabulários foram reajustados ao treino novo.
+- **Ingênuo** (`runs/naive_20261106`): MAE de 0,655 s no teste e 0,783 s na validação.
+- **GRU** (`runs/gru_20261106_s1`, mesma configuração e semente): melhor época 14, parou na 22.
+
+  | | MAE | Melhora sobre o ingênuo | MAE h = 1 / h = 10 | Viés | Cobertura p10–p90 | Depois de uma parada (GRU × ingênuo) |
+  |---|---|---|---|---|---|---|
+  | Teste | 0,497 s | +24% | 0,39 / 0,56 s | −0,02 s | 85% | 0,54 × 1,32 s |
+  | Validação | 0,618 s | +21% | 0,46 / 0,74 s | +0,10 s | 72% | |
+
+- **Por corrida do teste:** Singapura 0,613 s (ingênuo 0,763), Austin 0,497 s (0,691) e México 0,381 s (0,521).
+- **GRU nova × anterior nas mesmas três corridas** (28.220 voltas): 0,495 s contra 0,486 s, com cobertura de 85% nas duas. As duas corridas a mais no treino não mudaram o resultado além da variação esperada entre treinos com uma única semente.
+- A cobertura do intervalo ficou acima do alvo no teste (85%) e abaixo na validação (72%), onde está Madring, o circuito que a rede só conhece como `<unk>`. Calibrar melhor o intervalo fica para a v1.
+- O backtest (`python -m modeling.backtest`) passou a usar por padrão as corridas do teste do run, e o painel monta o título do teste a partir do run escolhido. O previsor ao vivo usa a GRU mais recente, então domingo em Interlagos roda com este modelo.
+
 ## 5 de novembro de 2026
 
 ### Baseline ingênuo

@@ -4,7 +4,7 @@ Gera runs/<run da GRU>/backtest.html (figuras interativas) e backtest_drivers.cs
 As métricas usam as mesmas linhas para os dois modelos: voltas limpas com previsão dos dois.
 
 Uso, a partir da pasta Neural_Stints:
-    .venv/Scripts/python -m modeling.backtest                      # Austin e México, últimos runs
+    .venv/Scripts/python -m modeling.backtest                      # corridas do teste, últimos runs
     .venv/Scripts/python -m modeling.backtest --races "2026 Austin"
 """
 import argparse
@@ -87,12 +87,15 @@ table.drivers th{color:var(--ink2);font-weight:500}
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--races", nargs="+", default=["2026 Austin", "2026 Mexico City"])
+    ap.add_argument("--races", nargs="+", help="padrão: as corridas do conjunto de teste do run")
     ap.add_argument("--top", type=int, default=3, help="pilotos com gráfico volta a volta, por corrida")
     args = ap.parse_args()
 
     gru_dir, naive_dir = latest_run("gru"), latest_run("naive")
     gru = pd.read_parquet(gru_dir / "predictions.parquet")
+    if not args.races:
+        test = gru[gru["split"] == "test"].sort_values("race_id")
+        args.races = list(dict.fromkeys(test["race_label"]))
     naive = pd.read_parquet(naive_dir / "predictions.parquet")
     race_laps = pd.read_parquet(RACE_LAPS)
     gru, naive = gru[gru["race_label"].isin(args.races)], naive[naive["race_label"].isin(args.races)]

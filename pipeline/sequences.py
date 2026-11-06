@@ -28,7 +28,7 @@ OUT_META = ROOT / "data" / "processed" / "dataset_meta.json"
 
 HORIZON = 10          # H: voltas previstas por janela
 MIN_CONTEXT = 2       # a primeira previsão é feita ao fim da volta 2
-N_VAL, N_TEST = 4, 5  # últimas corridas (em ordem cronológica) para validação e teste
+N_VAL, N_TEST = 4, 3  # últimas corridas secas (em ordem cronológica) para validação e teste
 
 # Observadas: só existem para as voltas já disputadas (entram no encoder)
 OBSERVED_NUM = ["pace_in", "s1_pace", "s2_pace", "s3_pace", "speed_i1_rel", "speed_i2_rel",

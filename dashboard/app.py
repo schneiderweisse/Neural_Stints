@@ -10,7 +10,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dashboard import live_tab, model_tab  # noqa: E402
+from dashboard import live_tab, model_tab, tasks_tab  # noqa: E402
 
 st.set_page_config(page_title="Neural Stints", page_icon="🏁", layout="wide")
 
@@ -49,8 +49,10 @@ st.markdown("<h2 style='margin-bottom:0'>Neural Stints</h2>"
             "<p style='color:#7d8590;margin-top:2px'>Previsão de ritmo e degradação de pneus na F1 com redes recorrentes</p>",
             unsafe_allow_html=True)
 
-live, gru = st.tabs(["Ao Vivo", "GRU v0"])
+live, gru, tasks = st.tabs(["Ao Vivo", "GRU v0", "Tarefas A e B"])
 with live:
     live_tab.render()
 with gru:
     model_tab.render()
+with tasks:
+    tasks_tab.render()

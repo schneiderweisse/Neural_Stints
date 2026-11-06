@@ -36,7 +36,10 @@ def render() -> None:
     g, n, cfg = G["metrics"], N["metrics"], G["config"]
     gt, nt = g["splits"]["test"], n["splits"]["test"]
 
-    st.subheader("Teste (Madring, Baku, Singapura, Austin e México 2026)")
+    names = lambda split: ", ".join(r.split(" ", 1)[1] for r in g["splits"][split]["by_race"])
+    st.subheader(f"Teste: {names('test')}")
+    st.caption(f"Corridas que a rede não viu no treino nem na escolha da época. A validação, usada para escolher a "
+               f"época, foi {names('val')}.")
     cols = st.columns(5)
     tile(cols[0], "MAE GRU v0", f"{gt['overall']['mae_s']:.3f} s", f"ingênuo {nt['overall']['mae_s']:.3f} s")
     tile(cols[1], "Melhora sobre o ingênuo", f"{gt['skill_vs_reference']['overall']:+.0%}",

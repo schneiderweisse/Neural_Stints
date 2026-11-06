@@ -64,6 +64,7 @@ def run_predictions(run_id: str) -> pd.DataFrame:
 
 @st.cache_data
 def race_laps(race_label: str) -> pd.DataFrame:
-    cols = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "neutralised", "position", "compound"]
+    cols = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "pit_out", "neutralised", "position",
+            "compound", "stint", "tyre_life", "fresh_tyre"]
     df = pd.read_parquet(RACE_LAPS, columns=cols)
     return df[df["race_label"] == race_label]

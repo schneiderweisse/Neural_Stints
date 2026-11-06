@@ -218,6 +218,45 @@ def lap_times(laps: pd.DataFrame, drivers: list[str], team_colors: dict[str, str
     return base_layout(fig, 400, theme)
 
 
+DRIVER_STYLE = [("#3987e5", "solid", "circle"), ("#199e70", "dash", "diamond")]   # validadas no fundo escuro
+
+
+def driver_forecasts(series: list[dict], xtitle: str, theme: str = "dark") -> go.Figure:
+    """Previsto × real de até dois pilotos no mesmo eixo.
+
+    Cada item de `series`: label, x, real (tempo real ou NaN), p10, p50, p90 e hover (texto por ponto).
+    O segundo piloto usa linha tracejada e marcador em losango, além da cor.
+    """
+    c = THEMES[theme]
+    fig = go.Figure()
+    lo, hi = [], []
+    for i, s in enumerate(series):
+        color, dash, symbol = DRIVER_STYLE[i]
+        df = pd.DataFrame({k: s[k] for k in ("x", "real", "p10", "p50", "p90", "hover")}).sort_values("x")
+        seg_id = (df["p50"].isna() != df["p50"].isna().shift()).cumsum()
+        for k, (_, seg) in enumerate(df[df["p50"].notna()].groupby(seg_id)):
+            fig.add_trace(go.Scatter(x=list(seg["x"]) + list(seg["x"])[::-1], y=list(seg["p90"]) + list(seg["p10"])[::-1],
+                                     mode="lines", fill="toself",
+                                     fillcolor=f"rgba({int(color[1:3], 16)},{int(color[3:5], 16)},{int(color[5:7], 16)},0.16)",
+                                     line=dict(width=0), hoverinfo="skip", legendgroup=s["label"], showlegend=False))
+        fig.add_trace(go.Scatter(x=df["x"], y=df["p50"], mode="lines", name=f"{s['label']} · previsto (p50)",
+                                 legendgroup=s["label"], line=dict(color=color, width=2, dash=dash),
+                                 customdata=df["hover"], hovertemplate="%{customdata}<br>previsto %{y:.3f} s<extra></extra>"))
+        fig.add_trace(go.Scatter(x=df["x"], y=df["real"], mode="markers", name=f"{s['label']} · real",
+                                 legendgroup=s["label"], marker=dict(size=9, color=color, symbol=symbol,
+                                                                     line=dict(width=1.5, color=c["ink"])),
+                                 hovertemplate="real %{y:.3f} s<extra></extra>"))
+        lo += [df["p10"].min(), df["real"].min()]
+        hi += [df["p90"].max(), df["real"].max()]
+    lo, hi = pd.Series(lo).min(), pd.Series(hi).max()
+    if pd.notna(lo) and pd.notna(hi):
+        pad = 0.15 * (hi - lo) + 0.1
+        fig.update_yaxes(range=[lo - pad, hi + pad])
+    fig.update_xaxes(title_text=xtitle, dtick=1 if len(series) and max(len(s["x"]) for s in series) <= 12 else None)
+    fig.update_yaxes(title_text="tempo de volta (s)")
+    return base_layout(fig, 420, theme)
+
+
 def live_forecast(real: pd.DataFrame, pred: pd.DataFrame, title: str, theme: str = "dark") -> go.Figure:
     """Voltas reais de um piloto e a previsão mais recente da GRU (mediana e faixa p10–p90)."""
     c = THEMES[theme]

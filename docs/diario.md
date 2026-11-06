@@ -4,6 +4,47 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
 ## 6 de novembro de 2026
 
+### Bateria de treinos: sementes, divisões e hiperparâmetros
+
+- **Código:** `modeling/sweep.py` grava a bateria em `runs/sweep_<data>/`, fora do git.
+  - Cada treino é um processo `modeling.gru` separado.
+  - Rodar de novo pula os treinos prontos.
+  - Com `--deadline HH:MM`, um treino só começa se a duração estimada couber no prazo.
+  - A busca vai em largura: todas as configurações com uma semente, depois a semente seguinte. Assim, um corte no prazo tira sementes, não configurações.
+  - No fim, grava `summary.csv` e `report.md`.
+
+  Para isso:
+  - `modeling.gru` e `modeling.naive` ganharam `--dataset`, `--out` e `--run-id`;
+  - `pipeline.sequences` ganhou `--n-val`, `--n-test` e `--name`. A divisão de 5 corridas fica em `data/processed/dataset_split5`.
+- **Execução:** 45 treinos em CPU, das 01:37 às 04:21, de 1,4 a 9 min cada.
+- **Fase 1, divisão de 3 × de 5 corridas:** a configuração atual, com 5 sementes em cada divisão, avaliada nas 3 corridas de teste comuns às duas.
+  - Divisão de 3: 0,490 ± 0,016 s. Divisão de 5: 0,499 ± 0,028 s.
+  - Diferença de −0,010 s, com erro-padrão de 0,014 s.
+
+  A impressão de que o modelo anterior era melhor vinha da variação entre sementes. Com uma semente de cada, a diferença de 0,009 s estava dentro desse ruído.
+- **Fase 2, busca na validação:** estado 32, 64 ou 128 × dropout 0,1 ou 0,2 × taxa 0,001 ou 0,0003, com 3 sementes cada.
+  - A pinball de validação ficou entre 0,206 e 0,217 s, com desvio entre sementes de até 0,010 s.
+  - A taxa 0,001 ganhou da 0,0003 nos seis pares, e as 6 melhores configurações usam 0,001.
+  - O tamanho do estado e o dropout ficaram dentro do ruído.
+  - A escolhida foi estado 32 com dropout 0,1 (14.901 parâmetros, contra 41.365 da atual), a melhor média com 3 sementes. Com 5 sementes, caiu para o segundo lugar, a 0,001 s da primeira (estado 32 com dropout 0,2).
+- **Fase 3, teste:**
+  - Escolhida: 0,496 ± 0,014 s. Atual: 0,490 ± 0,016 s.
+  - Cobertura p10–p90 de 85–86% nas duas.
+
+  Nenhuma configuração da grade melhora a atual: nesta faixa, mexer nos hiperparâmetros não muda o erro.
+- **Média das 5 sementes** (ensemble, média dos quantis):
+
+  | Configuração | Validação: 1 semente → média | Teste: 1 semente → média |
+  |---|---|---|
+  | Atual (estado 64) | 0,624 → 0,602 s | 0,490 → 0,472 s |
+  | Estado 32 | 0,610 → 0,585 s | 0,496 → 0,476 s |
+
+  - É o maior ganho da bateria, e aparece também na validação; não é escolha feita olhando o teste.
+  - A cobertura no teste fica em 88%.
+- **Determinismo:** a mesma configuração com a mesma semente na bateria repete o MAE de `gru_20261106_s1` (0,497 s no teste).
+- **Cobertura:** segue acima de 80% no teste (85–88%) e abaixo na validação (72–80%) em todas as configurações. É efeito das corridas, não dos hiperparâmetros.
+- **Ao vivo:** continua com `gru_20261106_s1`. Para usar a média das sementes em Interlagos, o `live.predict` precisa aceitar vários runs.
+
 ### Painel: aba Tarefas A e B
 
 - Nova aba `dashboard/tasks_tab.py`, com a corrida e até dois pilotos à escolha (só corridas da validação e do teste, que a rede não viu no treino):

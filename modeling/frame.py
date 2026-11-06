@@ -7,7 +7,7 @@ os metadados e o valor real da volta t + h. Os modelos só preenchem as colunas 
 import numpy as np
 import pandas as pd
 
-from pipeline.sequences import RACE_LAPS, load, prepare
+from pipeline.sequences import RACE_LAPS, dataset_paths, load, prepare
 
 META_COLUMNS = ["race_id", "race_label", "circuit", "year", "regulation", "driver", "team"]
 
@@ -17,13 +17,14 @@ def prepared_laps() -> pd.DataFrame:
     return prepare(pd.read_parquet(RACE_LAPS))
 
 
-def target_frame(splits: tuple[str, ...] = ("val", "test")) -> tuple[pd.DataFrame, pd.DataFrame, dict, dict]:
+def target_frame(splits: tuple[str, ...] = ("val", "test"), dataset: str = "dataset"
+                 ) -> tuple[pd.DataFrame, pd.DataFrame, dict, dict]:
     """Devolve (alvos, voltas, arrays, meta).
 
     alvos tem uma linha por (janela, h) das divisões pedidas, com a coluna `row` (índice da volta
     prevista em `voltas`) e `anchor` (índice da volta t, a última conhecida).
     """
-    d, meta = load()
+    d, meta = load(*dataset_paths(dataset))
     laps = prepared_laps()
     if not np.array_equal(laps["lap"].to_numpy(), d["lap"]):
         raise RuntimeError("race_laps.parquet e dataset.npz estão dessincronizados; rode pipeline.sequences")

@@ -55,7 +55,14 @@ py pipeline/fetch_tracinginsights.py
 .venv/Scripts/python -m pipeline.sequences
 .venv/Scripts/python -m modeling.naive      # baseline ingênuo -> runs/naive_<data>/
 .venv/Scripts/python -m modeling.gru        # GRU encoder–decoder -> runs/gru_<data>_s1/ (~2 min em CPU)
-.venv/Scripts/python -m modeling.backtest   # relatório GRU × ingênuo (Austin e México) -> runs/gru_.../backtest.html
+.venv/Scripts/python -m modeling.backtest   # relatório GRU × ingênuo (corridas do teste) -> runs/gru_.../backtest.html
+```
+
+A bateria de treinos (sementes, divisão de 3 × de 5 corridas e busca de hiperparâmetros) usa também a divisão alternativa e leva cerca de 2h40 em CPU; pode ser interrompida e retomada:
+
+```bash
+.venv/Scripts/python -m pipeline.sequences --n-test 5 --name dataset_split5
+.venv/Scripts/python -m modeling.sweep --deadline 09:00   # -> runs/sweep_<data>/report.md
 ```
 
 Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), três processos ficam no ar, cada um no seu terminal, gravando em `data/live/<ano>_<circuito>_<sessão>/`:

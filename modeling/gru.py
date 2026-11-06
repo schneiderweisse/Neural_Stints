@@ -184,14 +184,18 @@ def main() -> None:
     ap.add_argument("--clip", type=float, default=1.0)
     ap.add_argument("--cat-dropout", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--dataset", default="dataset", help="dataset em data/processed (ex.: dataset_split5)")
+    ap.add_argument("--out", type=Path, default=RUNS, help="pasta onde o run é gravado")
+    ap.add_argument("--run-id", help="padrão: gru_<data>_s<semente>")
+    ap.add_argument("--reference", type=Path, help="pasta do run do ingênuo para o skill (padrão: o mais recente)")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    run_id = f"gru_{date.today():%Y%m%d}_s{args.seed}"
+    run_id = args.run_id or f"gru_{date.today():%Y%m%d}_s{args.seed}"
 
-    frame, laps, d, meta = target_frame(("val", "test"))
+    frame, laps, d, meta = target_frame(("val", "test"), args.dataset)
     H = meta["horizon"]
     train_rows = np.repeat(d["seq_split"] == "train", np.diff(d["offsets"])) & d["y_mask"]
     y_mean, y_std = float(d["y"][train_rows].mean()), float(d["y"][train_rows].std())
@@ -247,7 +251,7 @@ def main() -> None:
     frame["pace_p10"], frame["pace_p50"], frame["pace_p90"] = q[:, 0], q[:, 1], q[:, 2]
     pred = finish_predictions(frame, run_id, "gru")
 
-    naive_dir = latest_run("naive")
+    naive_dir = args.reference or latest_run("naive")
     reference = pd.read_parquet(naive_dir / "predictions.parquet") if naive_dir else None
     metrics = compute_metrics(pred, reference)
     if naive_dir:
@@ -255,14 +259,16 @@ def main() -> None:
 
     config = {
         "run_id": run_id, "model": "gru", "seed": args.seed,
-        "hyperparameters": {k: v for k, v in vars(args).items() if k != "seed"} | {"emb_dims": EMB_DIMS},
+        "hyperparameters": {k: v for k, v in vars(args).items() if k not in ("seed", "dataset", "out", "run_id", "reference")}
+                           | {"emb_dims": EMB_DIMS},
+        "dataset": args.dataset,
         "eras_strategy": "pooled", "features": {k: meta[k] for k in ("observed", "known", "static_cat", "static_x")},
         "horizon": H, "quantiles": list(QUANTILES), "data": meta["splits"],
         "target_normalization": {"mean": y_mean, "std": y_std},
         "n_params": n_params, "train_seconds": round(train_seconds, 1), "best_epoch": best_epoch,
         "device": str(device), "git_commit": git_commit(), "created_at": now_utc(),
     }
-    out = write_run(run_id, config, pred, metrics, pd.DataFrame(history))
+    out = write_run(run_id, config, pred, metrics, pd.DataFrame(history), root=args.out)
     checkpoint = {"state_dict": model.state_dict(), "config": config, "dataset_meta": meta,
                   "model_args": {"n_obs": d["x_obs"].shape[1], "n_known": d["x_known"].shape[1],
                                  "vocab_sizes": vocab_sizes, "emb_dims": emb_dims,

@@ -64,11 +64,11 @@ def prepare(race: pd.DataFrame) -> pd.DataFrame:
     return model_columns(race)
 
 
-def split_races(race: pd.DataFrame) -> tuple[dict[str, list[str]], dict[str, str]]:
+def split_races(race: pd.DataFrame, n_val: int = N_VAL, n_test: int = N_TEST) -> tuple[dict[str, list[str]], dict[str, str]]:
     """Divisão cronológica das corridas e o rótulo de cada uma (<ano> <circuito>)."""
     order = race[["race_id", "race_label", "year", "round"]].drop_duplicates().sort_values(["year", "round"])
     ids = order["race_id"].tolist()
-    splits = {"train": ids[:-(N_VAL + N_TEST)], "val": ids[-(N_VAL + N_TEST):-N_TEST], "test": ids[-N_TEST:]}
+    splits = {"train": ids[:-(n_val + n_test)], "val": ids[-(n_val + n_test):-n_test], "test": ids[-n_test:]}
     return splits, dict(zip(order["race_id"], order["race_label"]))
 
 
@@ -90,9 +90,9 @@ def encode(df: pd.DataFrame, num: list[str], boolean: list[str], stats: dict) ->
     return np.stack(parts, axis=1).astype(np.float32)
 
 
-def build() -> tuple[dict, dict]:
+def build(n_val: int = N_VAL, n_test: int = N_TEST) -> tuple[dict, dict]:
     race = prepare(pd.read_parquet(RACE_LAPS))
-    splits, labels = split_races(race)
+    splits, labels = split_races(race, n_val, n_test)
     train = race[race["race_id"].isin(splits["train"])]
     stats = fit_stats(train, OBSERVED_NUM + KNOWN_NUM + STATIC_NUM)
     vocabs = {c: vocab(train, c) for c in STATIC_CAT}
@@ -157,14 +157,26 @@ def get_window(d: dict, w: int, horizon: int = HORIZON) -> dict[str, np.ndarray]
             "static_cat": d["static_cat"][s], "static_x": d["static_x"][s]}
 
 
+def dataset_paths(name: str = "dataset") -> tuple[Path, Path]:
+    """data/processed/<name>.npz e <name>_meta.json (o padrão é o dataset principal)."""
+    return OUT_NPZ.with_name(f"{name}.npz"), OUT_META.with_name(f"{name}_meta.json")
+
+
 def main() -> None:
+    import argparse
     sys.stdout.reconfigure(encoding="utf-8")
-    arrays, meta = build()
-    OUT_NPZ.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(OUT_NPZ, **arrays)
-    OUT_META.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--n-val", type=int, default=N_VAL)
+    ap.add_argument("--n-test", type=int, default=N_TEST)
+    ap.add_argument("--name", default="dataset", help="nome dos arquivos em data/processed (ex.: dataset_split5)")
+    args = ap.parse_args()
+    out_npz, out_meta = dataset_paths(args.name)
+    arrays, meta = build(args.n_val, args.n_test)
+    out_npz.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(out_npz, **arrays)
+    out_meta.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(arrays['seq_id']):,} sequências, {len(arrays['y']):,} voltas, "
-          f"{len(arrays['win_seq']):,} janelas -> {OUT_NPZ.relative_to(ROOT)}")
+          f"{len(arrays['win_seq']):,} janelas -> {out_npz.relative_to(ROOT)}")
     for name in ("train", "val", "test"):
         ids = meta["splits"][name]
         n_win = int((arrays["win_split"] == name).sum())

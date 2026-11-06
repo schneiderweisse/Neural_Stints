@@ -48,8 +48,8 @@ def write_atomic(path: Path, write) -> None:
 
 
 def write_run(run_id: str, config: dict, predictions: pd.DataFrame, metrics: dict,
-              history: pd.DataFrame | None = None) -> Path:
-    out = RUNS / run_id
+              history: pd.DataFrame | None = None, root: Path = RUNS) -> Path:
+    out = root / run_id
     out.mkdir(parents=True, exist_ok=True)
     dump = lambda obj: lambda p: p.write_text(json.dumps(obj, ensure_ascii=False, indent=1), encoding="utf-8")
     write_atomic(out / "config.json", dump(config))

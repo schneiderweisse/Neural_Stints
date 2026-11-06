@@ -161,7 +161,7 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | LSTM | | v1 |
 | Modelo linear misto e LightGBM | | v1 |
 | Estratégias de eras `2026_only` e `pretrain_finetune` | | v1 |
-| Várias sementes por configuração | | v1 |
+| Várias sementes por configuração (bateria `modeling.sweep`; o painel ainda mostra uma semente) | `sweep_<data>/` | ✅ |
 
 ### Arquivos
 
@@ -187,7 +187,8 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Recorte por composto | ✅ |
 | Recortes por circuito, regulamento, fase do stint e tráfego | v1 |
 | Inclinação da degradação contra o modelo misto | v1 |
-| Média ± desvio entre sementes e bootstrap por corrida | v1 |
+| Média ± desvio entre sementes | ✅ na bateria (`report.md`) |
+| Bootstrap por corrida | v1 |
 | Erro ao vivo em Interlagos | ✅ calculado depois da corrida, com os tempos oficiais |
 
 ### Painel

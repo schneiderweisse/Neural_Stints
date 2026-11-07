@@ -1,0 +1,27 @@
+{
+ "Meeting": {
+  "Key": 1010,
+  "Name": "German Grand Prix",
+  "Location": "Hockenheim",
+  "Country": {
+   "Key": 3,
+   "Code": "GER",
+   "Name": "Germany"
+  },
+  "Circuit": {
+   "Key": 34,
+   "ShortName": "Hockenheim"
+  }
+ },
+ "ArchiveStatus": {
+  "Status": "Generating"
+ },
+ "Key": 5474,
+ "Type": "Race",
+ "Name": "Race",
+ "StartDate": "2019-07-28T15:10:00",
+ "EndDate": "2019-07-28T17:10:00",
+ "GmtOffset": "02:00:00",
+ "Path": "2019/2019-07-28_German_Grand_Prix/2019-07-28_Race/",
+ "TotalLaps": 67
+}

@@ -3,7 +3,8 @@
 Acompanha data/live/<sessão>/laps.parquet (gravado pelo live.reader). A cada volta nova de um piloto,
 monta as variáveis com live/history.py (as mesmas funções do pipeline), codifica com a normalização e
 os vocabulários do treino guardados no model.pt e prevê as próximas 10 voltas no cenário A (o piloto
-segue na pista com o pneu atual). Grava data/live/<sessão>/predictions.parquet no formato padrão de
+segue na pista com o pneu atual). Se o run for um ensemble (modeling.ensemble), a previsão é a média
+dos quantis de todos os membros, como nas previsões de validação e teste do run. Grava data/live/<sessão>/predictions.parquet no formato padrão de
 docs/resultados.md, com split = live; o valor real de cada volta prevista é preenchido quando ela
 termina, e aí dá para medir o erro ao vivo.
 
@@ -27,6 +28,7 @@ import torch
 
 from live import history
 from live.history import LIVE
+from live.power import keep_awake
 from modeling.gru import Seq2SeqGRU, latest_run
 from modeling.results import finish_predictions, write_atomic
 from pipeline import sequences as sq
@@ -40,12 +42,15 @@ class LivePredictor:
         self.dir = Path(session_dir)
         self.run_dir = run_dir or latest_run("gru")
         ck = torch.load(self.run_dir / "model.pt", weights_only=False)
-        self.model = Seq2SeqGRU(**ck["model_args"])
-        self.model.load_state_dict(ck["state_dict"])
-        self.model.eval()
+        # um ensemble (modeling.ensemble) guarda vários membros; um run comum é um membro só
+        self.models = []
+        for m in ck.get("members", [ck]):
+            net = Seq2SeqGRU(**m["model_args"])
+            net.load_state_dict(m["state_dict"])
+            net.eval()
+            norm = m["config"]["target_normalization"]
+            self.models.append((net, norm["mean"], norm["std"]))
         self.meta, self.config = ck["dataset_meta"], ck["config"]
-        self.y_mean = self.config["target_normalization"]["mean"]
-        self.y_std = self.config["target_normalization"]["std"]
         self.H, self.min_context = self.meta["horizon"], self.meta["min_context"]
 
         info = json.loads((self.dir / "session.json").read_text(encoding="utf-8"))
@@ -105,10 +110,10 @@ class LivePredictor:
         enc = np.concatenate([sq.encode(hist, sq.OBSERVED_NUM, sq.OBSERVED_BOOL, self.meta["stats"]),
                               self.encode_known(hist)], axis=1)
         cat, sx = self.static(g)
-        with torch.no_grad():
-            q = self.model.forecast(torch.from_numpy(enc[None]), torch.from_numpy(self.encode_known(fut)[None]),
-                                    torch.from_numpy(cat), torch.from_numpy(sx))[0].numpy()
-        q = q * self.y_std + self.y_mean
+        inputs = (torch.from_numpy(enc[None]), torch.from_numpy(self.encode_known(fut)[None]),
+                  torch.from_numpy(cat), torch.from_numpy(sx))
+        with torch.no_grad():                             # ensemble: média dos quantis dos membros
+            q = np.mean([net.forecast(*inputs)[0].numpy() * std + mean for net, mean, std in self.models], axis=0)
         return pd.DataFrame({
             "split": "live", "race_id": "live", "race_label": f"{self.year} {self.circuit}", "circuit": self.circuit,
             "year": self.year, "regulation": regulation(self.year), "driver": last["driver"], "team": last["team"],
@@ -201,6 +206,8 @@ def main() -> None:
         n = pred.replay_all(pd.read_parquet(laps_path))
         print(f"{n} previsões -> {pred.save()}")
         return
+    if keep_awake(display=True):
+        print("modo acordado: o Windows não suspende nem apaga a tela enquanto o previsor roda (não feche a tampa)")
     seen = None
     try:
         while True:

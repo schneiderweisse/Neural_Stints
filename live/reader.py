@@ -16,8 +16,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from live.feed import DEFAULT_URL, HttpSource, ReplaySource
+from live.feed import DEFAULT_URL, STALE_AFTER, HttpSource, ReplaySource, heartbeat_age
 from live.laps import LapTracker
+from live.power import keep_awake
 from modeling.results import write_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,9 +53,10 @@ def load_laps(out_root: Path, session: str) -> list[dict]:
     return rows
 
 
-def run(source, out_root: Path = LIVE, quiet: bool = False) -> LapTracker:
+def run(source, out_root: Path = LIVE, quiet: bool = False, live: bool = False) -> LapTracker:
+    """Processa os estados da fonte. Com live=True, avisa quando o feed da F1 para de chegar."""
     tracker = LapTracker(load=lambda session: load_laps(out_root, session))
-    waiting = False
+    waiting, stale = False, False
     for clock, state in source:
         if state is None:
             if not waiting and not quiet:
@@ -62,6 +64,14 @@ def run(source, out_root: Path = LIVE, quiet: bool = False) -> LapTracker:
             waiting = True
             continue
         waiting = False
+        if live and not quiet:
+            age = heartbeat_age(state)
+            if age is not None and age > STALE_AFTER and not stale:
+                print(f"{datetime.now():%H:%M:%S} ATENÇÃO: nenhum dado da F1 há {age / 60:.0f} min; o f1-dash pode ter "
+                      "perdido o feed (rode o start-live.sh de novo se não voltar)")
+            elif stale and age is not None and age <= STALE_AFTER:
+                print(f"{datetime.now():%H:%M:%S} feed da F1 voltou")
+            stale = age is not None and age > STALE_AFTER
         before = tracker.session
         new = tracker.update(state, clock)
         if tracker.session != before and tracker.session:
@@ -89,8 +99,10 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=LIVE)
     args = ap.parse_args()
     source = ReplaySource(args.replay, args.interval, args.speed) if args.replay else HttpSource(args.url, args.interval)
+    if not args.replay and keep_awake(display=True):
+        print("modo acordado: o Windows não suspende nem apaga a tela enquanto o leitor roda (não feche a tampa)")
     try:
-        tracker = run(source, args.out)
+        tracker = run(source, args.out, live=not args.replay)
     except KeyboardInterrupt:
         print("interrompido")
         return

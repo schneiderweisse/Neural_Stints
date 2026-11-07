@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Neural Stints · demo</title>
+    <meta name="description" content="Previsão de ritmo e degradação de pneus na F1 com redes recorrentes: demo do painel." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏁</text></svg>" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@1.12.0/build/stlite.css" />
+    <style>
+      html, body { margin: 0; background: #0d1117; color: #e6edf3; }
+      #loading { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                 max-width: 560px; margin: 18vh auto 0; padding: 0 16px; text-align: center; color: #7d8590; }
+      #loading h1 { color: #e6edf3; font-weight: 600; font-size: 24px; margin: 0 0 8px; }
+      #loading .bar { height: 3px; background: #21262d; border-radius: 2px; overflow: hidden; margin: 22px auto 0; width: 220px; }
+      #loading .bar i { display: block; height: 100%; width: 40%; background: #2f81f7; border-radius: 2px;
+                        animation: slide 1.4s ease-in-out infinite; }
+      @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) { #loading .bar i { animation: none; width: 100%; } }
+    </style>
+  </head>
+  <body>
+    <div id="loading">
+      <h1>Neural Stints</h1>
+      <p>Carregando o painel no navegador (Python em WebAssembly). Na primeira visita isso leva uns 30 segundos.</p>
+      <div class="bar"><i></i></div>
+    </div>
+    <div id="root"></div>
+    <script type="module">
+      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.12.0/build/stlite.js";
+      // o aviso de carregamento sai quando o Streamlit desenha o app
+      const ready = setInterval(() => {
+        if (document.querySelector('[data-testid="stAppViewContainer"]')) {
+          document.getElementById("loading")?.remove();
+          clearInterval(ready);
+        }
+      }, 300);
+      mount(
+        {
+          entrypoint: "demo_app.py",
+          requirements: ["plotly", "pyarrow"],
+          archives: [{ url: "./app.zip", format: "zip", options: {} }],
+          streamlitConfig: {
+            "theme.base": "dark",
+            "theme.primaryColor": "#2f81f7",
+            "theme.backgroundColor": "#0d1117",
+            "theme.secondaryBackgroundColor": "#161b22",
+            "theme.textColor": "#e6edf3",
+            "client.toolbarMode": "viewer",
+          },
+        },
+        document.getElementById("root"),
+      );
+    </script>
+  </body>
+</html>

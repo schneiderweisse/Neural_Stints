@@ -1,10 +1,11 @@
 """Aba Ao Vivo: a sessão atual (f1-dash) ou uma sessão gravada."""
 import html
 
+import pandas as pd
 import streamlit as st
 
 from dashboard import data
-from live.feed import DEFAULT_URL
+from live.feed import DEFAULT_URL, STALE_AFTER, heartbeat_age
 from live.laps import as_list, session_key, sub
 from modeling.figures import COMPOUND_LETTER, compound_color, lap_times, live_forecast
 
@@ -12,6 +13,11 @@ TRACK_STATUS = {"1": ("Pista verde", "#3fb950"), "2": ("Bandeira amarela", "#d29
                 "4": ("Safety car", "#d29922"), "5": ("Bandeira vermelha", "#f85149"), "6": ("VSC", "#d29922"),
                 "7": ("Fim do VSC", "#d29922")}
 PURPLE, GREEN, MUTED = "#a371f7", "#3fb950", "#7d8590"
+# minissetores, com os códigos de status do feed (os mesmos que o f1-dash usa)
+YELLOW, PIT, EMPTY = "#d29922", "#2f81f7", "#30363d"
+SEGMENT_COLOR = {2048: YELLOW, 2052: YELLOW, 2049: GREEN, 2051: PURPLE, 2064: PIT}
+SEGMENT_LEGEND = [(YELLOW, "mais lento que o melhor pessoal"), (GREEN, "melhor pessoal"), (PURPLE, "melhor da sessão"),
+                  (PIT, "pit lane"), (EMPTY, "ainda não passou")]
 
 
 def timing_color(item) -> str:
@@ -28,6 +34,26 @@ def cell(value, color: str = "", mono: bool = True) -> str:
     style = f' style="color:{color}"' if color else ""
     cls = ' class="mono"' if mono else ""
     return f"<td{cls}{style}>{html.escape(str(value)) if value not in (None, '') else ''}</td>"
+
+
+def sector_cell(sector) -> str:
+    """Setor com os minissetores em cima, como no f1-dash.
+
+    Com o setor em andamento (sem `Value`), mostra o tempo da volta anterior em cinza.
+    """
+    sector = sector if isinstance(sector, dict) else {}
+    bars = "".join(f"<i style='background:{SEGMENT_COLOR.get(g.get('Status') if isinstance(g, dict) else None, EMPTY)}'></i>"
+                   for g in as_list(sector.get("Segments")))
+    value, color = sector.get("Value") or "", timing_color(sector)
+    if not value:
+        value, color = sector.get("PreviousValue") or "", MUTED
+    style = f" style='color:{color}'" if color else ""
+    return f"<td class='mono sector'><div class='minis'>{bars}</div><span{style}>{html.escape(str(value))}</span></td>"
+
+
+def segment_legend() -> str:
+    return "<div class='minis-legend'>Minissetores:" + "".join(
+        f"<span><i style='background:{c}'></i>{html.escape(t)}</span>" for c, t in SEGMENT_LEGEND) + "</div>"
 
 
 def timing_rows(state: dict) -> tuple[list[dict], bool]:
@@ -69,7 +95,8 @@ def timing_table(state: dict) -> str:
     rows, race = timing_rows(state)
     head = ["Pos", "Piloto", "Melhor volta", "Gap" if race else "Dif. melhor", "Intervalo" if race else "Dif. à frente",
             "Última volta", "S1", "S2", "S3", "Pneu", "Voltas", "Paradas", ""]
-    out = ["<table class='timing'><thead><tr>" + "".join(f"<th>{h}</th>" for h in head) + "</tr></thead><tbody>"]
+    out = ["<div class='timing-wrap'><table class='timing'><thead><tr>" + "".join(f"<th>{h}</th>" for h in head) +
+           "</tr></thead><tbody>"]
     for r in rows:
         tyre = ""
         if r["compound"]:
@@ -78,7 +105,7 @@ def timing_table(state: dict) -> str:
             tyre = (f"<span class='tyre' style='border-color:{compound_color(r['compound'], 'dark')};"
                     f"color:{compound_color(r['compound'], 'dark')}'>{letter}</span>{age}{'' if r['new'] else ' usado'}")
         last = r["last"] if isinstance(r["last"], dict) else {}
-        sectors = [s if isinstance(s, dict) else {} for s in r["sectors"]] + [{}] * (3 - len(r["sectors"]))
+        sectors = list(r["sectors"]) + [{}] * (3 - len(r["sectors"]))
         status = f"<span class='badge'>{r['status']}</span>" if r["status"] else ""
         out.append(
             "<tr>" + cell(r["pos"]) +
@@ -86,9 +113,11 @@ def timing_table(state: dict) -> str:
             f"<span class='team'>{html.escape(r['team'])}</span></td>" +
             cell(r["best"]) + cell(r["gap"]) + cell(r["interval"]) +
             cell(last.get("Value", ""), timing_color(last)) +
-            "".join(cell(s.get("Value", ""), timing_color(s)) for s in sectors[:3]) +
+            "".join(sector_cell(s) for s in sectors[:3]) +
             f"<td class='mono'>{tyre}</td>" + cell(r["laps"]) + cell(r["pits"]) + f"<td>{status}</td></tr>")
-    out.append("</tbody></table>")
+    out.append("</tbody></table></div>")
+    if any(isinstance(s, dict) and s.get("Segments") for r in rows for s in r["sectors"]):
+        out.append(segment_legend())
     return "".join(out)
 
 
@@ -100,9 +129,34 @@ def badge(state: dict, mode: str) -> str:
     if mode == "live":
         if str(sub(state, "SessionStatus", "Status") or "") in FINISHED:
             return "<span class='live-badge off'><span class='pulse'></span>SESSÃO ENCERRADA</span>"
+        age = heartbeat_age(state)
+        if age is not None and age > STALE_AFTER:            # o f1-dash parou de receber a F1: dados congelados
+            return f"<span class='live-badge stale'><span class='pulse'></span>SEM DADOS HÁ {age / 60:.0f} MIN</span>"
         return "<span class='live-badge on'><span class='pulse'></span>AO VIVO</span>"
     label = "REPRODUZINDO GRAVAÇÃO" if mode == "playing" else "GRAVAÇÃO"
     return f"<span class='live-badge off'><span class='pulse'></span>{label}</span>"
+
+
+def remaining(state: dict, live: bool) -> str:
+    """Tempo restante da sessão.
+
+    O feed só manda o relógio quando ele começa, para ou é corrigido: `Remaining` vale no instante `Utc`
+    e, com `Extrapolating`, o relógio está correndo desde então. Ao vivo, desconta o tempo passado desde
+    `Utc`, como o f1-dash; na gravação, mostra o último valor enviado.
+    """
+    clock = state.get("ExtrapolatedClock") or {}
+    rem = clock.get("Remaining")
+    if not rem:
+        return "—"
+    if not (live and clock.get("Extrapolating") and clock.get("Utc")):
+        return rem
+    try:
+        h, m, s = (float(x) for x in str(rem).split(":"))
+        left = h * 3600 + m * 60 + s - (pd.Timestamp.now(tz="UTC") - pd.Timestamp(clock["Utc"])).total_seconds()
+    except (ValueError, TypeError):
+        return rem
+    left = max(0, int(left))
+    return f"{left // 3600:02d}:{left % 3600 // 60:02d}:{left % 60:02d}"
 
 
 def session_header(state: dict, clock_label: str = "", mode: str = "live") -> str:
@@ -113,7 +167,7 @@ def session_header(state: dict, clock_label: str = "", mode: str = "live") -> st
     label, color = TRACK_STATUS.get(code, (sub(state, "TrackStatus", "Message") or "—", MUTED))
     lap = state.get("LapCount") or {}
     progress = (f"volta {lap.get('CurrentLap')} de {lap.get('TotalLaps')}" if lap.get("TotalLaps")
-                else f"restam {sub(state, 'ExtrapolatedClock', 'Remaining') or '—'}")
+                else f"restam {remaining(state, mode == 'live')}")
     w = state.get("WeatherData") or {}
     rain = " · chuva" if str(w.get("Rainfall", "0")) not in ("0", "") else ""
     weather = f"ar {w.get('AirTemp', '—')} °C · pista {w.get('TrackTemp', '—')} °C · umidade {w.get('Humidity', '—')}%{rain}"
@@ -130,7 +184,8 @@ def team_colors(state: dict) -> dict[str, str]:
             if isinstance(d, dict)}
 
 
-def render_body(state: dict, session_dir, clock: float | None, clock_label: str = "", mode: str = "live") -> None:
+def render_body(state: dict, session_dir, clock: float | None, clock_label: str = "", mode: str = "live",
+                demo: bool = False) -> None:
     st.markdown(session_header(state, clock_label, mode), unsafe_allow_html=True)
     st.markdown(timing_table(state), unsafe_allow_html=True)
 
@@ -148,10 +203,18 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
 
     preds = data.read_parquet_fresh(session_dir / "predictions.parquet")
     if preds is None or preds.empty:
-        if str(sub(state, "SessionInfo", "Type") or "").lower() in ("race", "sprint"):
+        if demo:
+            st.caption("Nesta corrida não há previsões da GRU: 2019 é anterior aos dados de treino (2022 a 2026). "
+                       "O ajuste do modelo está nas abas GRU v0 e Tarefas A e B; ao vivo, no painel completo, a "
+                       "previsão das próximas 10 voltas aparece aqui a cada volta.")
+        elif str(sub(state, "SessionInfo", "Type") or "").lower() in ("race", "sprint"):
             st.caption("Previsões da GRU: rode `python -m live.predict` para vê-las aqui.")
         return
     st.subheader("Previsão da GRU v0 (cenário A: mesmo pneu, sem parada)")
+    if "gru_run" in preds:
+        run = str(preds["gru_run"].iloc[-1])
+        ens = data.run_files(run)["config"].get("ensemble") if (data.RUNS / run / "config.json").exists() else None
+        st.caption(f"Modelo `{run}`" + (f": média dos quantis de {len(ens['members'])} sementes." if ens else "."))
     drv = st.selectbox("Piloto", [d for d in order if d in set(preds["driver"])], key=f"pred_{session_dir.name}")
     current = int(laps.loc[laps["driver"] == drv, "lap"].max()) if (laps["driver"] == drv).any() else 0
     p = preds[(preds["driver"] == drv) & (preds["t"] <= current)]
@@ -167,9 +230,15 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
                    f"cobertura do intervalo p10–p90: {cov:.0%}")
 
 
-def render() -> None:
+def render(demo: bool = False) -> None:
+    """Aba Ao Vivo. Na demo (demo=True), só a reprodução de sessões gravadas, sem o f1-dash."""
     c1, c2, c3 = st.columns([2, 3, 2])
-    source = c1.radio("Fonte", ["f1-dash ao vivo", "Sessão gravada"], horizontal=True, key="live_source")
+    if demo:
+        source = "Sessão gravada"
+        c1.markdown("<div class='demo-note'>Reprodução de uma corrida gravada: arraste o momento ou aperte "
+                    "<b>Reproduzir</b>.</div>", unsafe_allow_html=True)
+    else:
+        source = c1.radio("Fonte", ["f1-dash ao vivo", "Sessão gravada"], horizontal=True, key="live_source")
     if source == "f1-dash ao vivo":
         url = c2.text_input("Endereço do f1-dash", DEFAULT_URL, key="live_url")
         interval = c3.slider("Atualizar a cada (s)", 2, 15, 3, key="live_every")
@@ -204,6 +273,6 @@ def render() -> None:
         idx = st.select_slider("Momento da gravação", options=list(range(len(snaps))), key="rec_idx",
                                format_func=lambda i: f"{snaps[i][0] / 60:.1f} min")
         clock, state = snaps[idx]
-        render_body(state, rec.parent, clock, f"gravação {clock / 60:.0f} min", "playing" if play else "recorded")
+        render_body(state, rec.parent, clock, f"gravação {clock / 60:.0f} min", "playing" if play else "recorded", demo)
 
     recorded_view()

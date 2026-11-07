@@ -4,6 +4,86 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
 ## 6 de novembro de 2026
 
+### Demo do painel para o GitHub Pages
+
+- **Pasta `demo/`:** versão pública do painel, sem a parte ao vivo. Tem três abas: a reprodução do GP da Alemanha de 2019, a GRU v0 (o ensemble de 5 sementes contra o ingênuo) e as Tarefas A e B.
+- **Como roda:** inteiramente no navegador, com o stlite 1.12.0 (Streamlit 1.65 em Pyodide 314, Python 3.14, com pandas 3 e pyarrow). O site é estático (`index.html` e `app.zip`), então serve no GitHub Pages sem servidor. A primeira visita leva uns 30 s.
+- **Código compartilhado:** a demo usa as mesmas abas de `dashboard/`.
+  - O visual comum (CSS, cabeçalho e rodapé) passou para `dashboard/layout.py`.
+  - A aba Ao Vivo ganhou um modo demo: só a reprodução, sem o f1-dash. Nele, em vez do aviso para rodar o previsor, aparece a explicação de que 2019 é anterior aos dados de treino.
+- **Dados enxutos** (`demo/files/`, 4,5 MB, commitados), gerados por `demo/build.py export`:
+  - os runs `gru_20261106_ens5` e `naive_20261106`, sem os pesos;
+  - as voltas das 7 corridas de validação e teste;
+  - a reprodução de 2019 já calculada a cada 30 s, só com o que o painel mostra: 294 momentos, 5,5 MB de JSON que viram 0,1 MB compactados, no lugar do fluxo bruto de 21 MB.
+- **Defeito pego na exportação:** o `ReplaySource` altera o mesmo estado a cada mensagem, e a primeira versão do recorte guardava referências. Todos os momentos saíam com os valores do fim da corrida. Agora cada momento é copiado, e os 294 batem campo a campo com o estado completo.
+- **Logos:** o cabeçalho da demo tem "F1" em texto vermelho no lugar do logo da Fórmula 1, que é marca registrada (o logo antigo também é). O logo da UnB vai junto.
+- **Testado no navegador** (servidor local na porta 8770):
+  - as três abas carregam sem erro, com 9 gráficos;
+  - o botão Reproduzir avança a corrida;
+  - no celular (375 px), a página não rola de lado.
+- **Deploy:** o workflow `.github/workflows/demo.yml` monta o site (`demo/build.py site`, só com a biblioteca padrão) e publica no GitHub Pages a cada push na `main` que mexa na demo ou no código das abas. Falta escolher "GitHub Actions" como fonte em Settings → Pages.
+
+### Ensaios ao vivo: TL1 e TL2 de Interlagos
+
+- **Primeiro contato com o feed real da F1.** O f1-dash (`start-live.sh`), o gravador, o leitor e o painel ficaram no ar em ~1 min; o `realtime` compila em ~35 s.
+- **Painel:**
+  - **Atualização sem escurecer.** O Streamlit 1.67 deixa translúcido o que está sendo refeito (`data-stale`), e um CSS desliga isso. Medido: opacidade 1 em 515 amostras durante 7 s de atualizações.
+  - **Setores com minissetores, como no f1-dash.** Cada minissetor vira uma barrinha com os códigos do feed: 2048 amarelo, 2049 verde, 2051 roxo e 2064 pit lane. Com o setor em andamento, o tempo da volta anterior aparece em cinza, e há uma legenda.
+  - **Relógio da sessão.** O feed só manda o tempo restante quando o relógio começa ou para. Ao vivo, o painel desconta o tempo passado desde o envio, como o f1-dash.
+  - **Selo "SEM DADOS HÁ X MIN"** em amarelo no lugar de AO VIVO, quando o último Heartbeat da F1 tem mais de 90 s.
+- **TL1:** gravado das 12:31 às 12:51 (159 voltas, 22 pilotos), até o notebook ser fechado. A bandeira vermelha das ~12:40 apareceu no painel.
+- **Defeito no leitor (`live/laps.py`), achado no TL1.** A volta de saída do box não recebe tempo do feed, então fica esperando o tempo atrasado. Na volta seguinte, o contador de voltas e o tempo chegam juntos, e o leitor dava esse tempo à volta que esperava. Daí em diante, cada volta do piloto ficava com o tempo da seguinte.
+  - Exemplo: no VER, a volta 2 (de saída) recebeu 1:13.341, que é o tempo da volta 3.
+  - Consequência no TL1: só 11 de 82 voltas batiam com a soma dos setores. Na corrida, isso aconteceria a cada parada.
+  - **Correção:** o tempo que chega junto com uma volta nova é dessa volta. A que esperava fica com a soma dos setores, quando eles estão completos.
+  - **Conferência extra:** se o tempo do feed difere da soma dos setores da mesma volta em mais de 0,05 s, fica a soma.
+- **Verificação:**
+  - TL1 refeito a partir da gravação: 86 de 86 voltas com setores completos batem ao milésimo, já só com a correção, sem precisar da conferência extra. O `laps.parquet` foi trocado pelo refeito.
+  - TL2 e a corrida de 2019 refeitos com o leitor corrigido: nenhum tempo mudou (140 e 1.054 voltas).
+- **TL2:** gravado só das 16:05 às 16:18 (13 min de feed, 140 voltas de 21 pilotos, soma dos setores batendo em 100%). O log de energia do Windows mostra o que aconteceu:
+  - 16:10:13: a tela apagou depois de 5 min sem uso, e o notebook entrou em modo de espera (Modern Standby);
+  - 16:18:23: a rede foi cortada;
+  - 17:07:59: o notebook acordou.
+
+  O f1-dash não reconectou à F1 depois disso e ficou com o estado das 16:18.
+- **Modo acordado:**
+  - `live/power.py` pede ao Windows sistema e tela acordados (`SetThreadExecutionState`). O gravador, o leitor e o previsor fazem esse pedido ao vivo. A bateria de treinos usa o mesmo módulo, mas só pede o sistema acordado.
+  - O Windows aceitou o pedido. Não deu para isolar o efeito, porque outro programa já mantinha o sistema e a tela acordados no teste; a prova fica para o TL3.
+  - Fechar a tampa ainda suspende.
+  - O leitor avisa no terminal quando o feed fica mais de 90 s sem Heartbeat.
+- **Referência de ritmo do plano B:** sai das gravações dos dois treinos para 27 pilotos (os 22 titulares e os estreantes do TL1). A mais rápida é a de ANT, 1:11.824, do TL2.
+
+### Média das sementes (ensemble) no ao vivo
+
+- **Código:** `modeling/ensemble.py` junta runs da GRU num ensemble.
+  - A previsão é a média dos p10, p50 e p90 dos membros, volta a volta. A média de quantis em ordem continua em ordem.
+  - Grava um run no formato padrão (`runs/gru_<data>_ens<n>/`), com as previsões de validação e teste, as métricas e as curvas de treino de cada membro.
+  - O `model.pt` do run guarda os pesos de todos os membros.
+- **Escolha pela validação**, a mesma regra da bateria: o ensemble do estado 32 (dropout 0,1) contra o do estado 64.
+
+  | Ensemble de 5 sementes | Pinball validação | MAE validação | MAE teste | Cobertura teste |
+  |---|---|---|---|---|
+  | Estado 32 (escolhido) | 0,199 s | 0,585 s | 0,476 s | 88% |
+  | Estado 64 | 0,204 s | 0,602 s | 0,472 s | 88% |
+
+  No teste os dois empatam, e o estado 32 tem um terço dos parâmetros.
+- **Run `gru_20261106_ens5`:**
+  - teste: MAE de 0,476 s (uma semente: 0,496 ± 0,014 s), 28% melhor que o ingênuo, 0,54 s depois de uma parada;
+  - validação: MAE de 0,585 s, cobertura de 79%.
+- **Ao vivo:** o `live.predict` carrega todos os membros do `model.pt` e faz a mesma média. Um run de uma rede só continua funcionando como antes.
+  - Refazendo o México 2026 pelo caminho ao vivo, as previsões batem com as do run nas janelas sem parada no horizonte, com diferença máxima de 1,5e-8.
+  - No México, o erro ao vivo cai de 0,444 s (uma semente) para 0,426 s, com cobertura de 86%.
+  - Cada previsão leva ~110 ms, contra ~80 ms. Quando os 19 pilotos fecham volta na mesma leitura, a atualização leva ~3 s.
+  - O previsor e o painel usam a GRU mais recente, então domingo em Interlagos roda com o ensemble.
+- **Painel:**
+  - a aba GRU v0 mostra o ensemble (5 sementes, parâmetros por rede e melhores épocas) e a curva de treino de cada semente;
+  - a aba Ao Vivo diz qual modelo fez as previsões.
+- **Bateria:** a escolha da fase 3 agora fica gravada em `phase3.json` quando a fase 2 termina.
+  - Rodar a bateria de novo só para refazer o relatório tinha escolhido outra vez, já contando as sementes extras, e treinado mais 2 sementes do estado 32 com dropout 0,2.
+  - Com 5 sementes, essa configuração fez 0,208 s de pinball na validação (contra 0,207) e 0,515 ± 0,027 s no teste. Isso confirma a escolha original.
+  - O relatório agora sugere o ensemble, não uma semente.
+- **Correção:** uma gravação de um ano sem dados baixados do TracingInsights (como 2019) derrubava o previsor. Agora `iter_sessions` pula anos que não existem em `data/raw`, e o previsor passa às gravações ao vivo.
+
 ### Bateria de treinos: sementes, divisões e hiperparâmetros
 
 - **Código:** `modeling/sweep.py` grava a bateria em `runs/sweep_<data>/`, fora do git.
@@ -43,7 +123,7 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
   - A cobertura no teste fica em 88%.
 - **Determinismo:** a mesma configuração com a mesma semente na bateria repete o MAE de `gru_20261106_s1` (0,497 s no teste).
 - **Cobertura:** segue acima de 80% no teste (85–88%) e abaixo na validação (72–80%) em todas as configurações. É efeito das corridas, não dos hiperparâmetros.
-- **Ao vivo:** continua com `gru_20261106_s1`. Para usar a média das sementes em Interlagos, o `live.predict` precisa aceitar vários runs.
+- **Ao vivo:** nesse momento o previsor ainda usava uma rede só. A média das sementes entrou logo depois (seção acima).
 
 ### Painel: aba Tarefas A e B
 

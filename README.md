@@ -4,6 +4,8 @@ Previsão de ritmo de corrida e degradação de pneus na Fórmula 1 com redes ne
 
 > Projeto final da disciplina **Redes Neurais 2**, do Bacharelado em Estatística da Universidade de Brasília (UnB). Em desenvolvimento.
 
+**Demo do painel:** https://schneiderweisse.github.io/Neural_Stints/ (roda no navegador; sem a parte ao vivo, ver [demo/README.md](demo/README.md)).
+
 ## Motivação
 
 Numa equipe de Fórmula 1, a estratégia de corrida depende de saber como o tempo de volta vai evoluir: quanto o carro ganha com um jogo de pneus novos, quanto perde à medida que o pneu envelhece e quando a degradação passa a custar mais do que uma parada nos boxes. Este projeto tenta responder isso com dados públicos e uma rede neural.
@@ -65,11 +67,19 @@ A bateria de treinos (sementes, divisão de 3 × de 5 corridas e busca de hiperp
 .venv/Scripts/python -m modeling.sweep --deadline 09:00   # -> runs/sweep_<data>/report.md
 ```
 
+O modelo em uso é a média das 5 sementes da configuração escolhida pela bateria (ensemble, média dos quantis), num run comum que o previsor e o painel tratam como um modelo só:
+
+```bash
+.venv/Scripts/python -m modeling.ensemble runs/sweep_20261106/gru_split3_h32_d0.1_lr0.001_s{1,2,3,4,5}   # -> runs/gru_<data>_ens5/
+```
+
 Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), três processos ficam no ar, cada um no seu terminal, gravando em `data/live/<ano>_<circuito>_<sessão>/`:
 
 - o **gravador** salva o fluxo bruto em `recording.jsonl`, no formato do simulador do f1-dash (serve para o replay do projeto e para rever a sessão no próprio painel do f1-dash);
 - o **leitor** monta o histórico de voltas em `laps.parquet` (e os dados da sessão em `session.json`);
-- o **previsor** roda a GRU a cada volta nova e grava `predictions.parquet` no formato padrão, preenchendo o valor real de cada volta prevista quando ela termina. Só funciona em corridas e sprints, que têm total de voltas.
+- o **previsor** roda a GRU mais recente em `runs/` (ou a de `--run`) a cada volta nova e grava `predictions.parquet` no formato padrão, preenchendo o valor real de cada volta prevista quando ela termina. Só funciona em corridas e sprints, que têm total de voltas.
+
+Enquanto rodam ao vivo, os três pedem ao Windows para não suspender nem apagar a tela (`live/power.py`). Neste notebook, a tela apagar por inatividade já leva ao modo de espera, que corta a rede alguns minutos depois. Mesmo assim, fechar a tampa ou fechar o app onde os terminais rodam interrompe tudo. Se o feed da F1 parar de chegar por mais de 90 s, o leitor avisa no terminal e o painel troca o selo AO VIVO por "SEM DADOS HÁ X MIN".
 
 ```bash
 .venv/Scripts/python -m live.recorder                     # grava a sessão (SSE do f1-dash)
@@ -87,6 +97,8 @@ O painel tem três abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sess�
 
 O cabeçalho mostra os logos da F1 e da UnB se os arquivos estiverem em `dashboard/assets/` (ver o README da pasta). Por serem marcas registradas, eles ficam fora do git.
 
+A demo pública em `demo/` usa as mesmas abas, sem a parte ao vivo: a reprodução da corrida de 2019 e o ajuste do modelo, rodando no navegador com stlite e publicada no GitHub Pages. No lugar do logo da F1, o cabeçalho dela tem "F1" em texto. Como montar e atualizar: [demo/README.md](demo/README.md).
+
 Se o leitor for reiniciado no meio da sessão, ele retoma o histórico já gravado. O `live/history.py` transforma esse histórico nas variáveis do treino, usando as mesmas funções do pipeline.
 
 No macOS ou Linux, use `python3` e `.venv/bin/python`.
@@ -98,6 +110,7 @@ pipeline/   scripts de coleta e preparação dos dados
 modeling/   modelos (baselines e redes) e cálculo das métricas
 live/       leitura do live timing (f1-dash ou gravação), gravador, histórico e previsões ao vivo
 dashboard/  painel Streamlit (abas Ao Vivo, GRU v0 e Tarefas A e B)
+demo/       demo do painel para o GitHub Pages (stlite, sem a parte ao vivo) e os seus dados enxutos
 runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)
 docs/       documentos e figuras do projeto

@@ -161,7 +161,8 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | LSTM | | v1 |
 | Modelo linear misto e LightGBM | | v1 |
 | Estratégias de eras `2026_only` e `pretrain_finetune` | | v1 |
-| Várias sementes por configuração (bateria `modeling.sweep`; o painel ainda mostra uma semente) | `sweep_<data>/` | ✅ |
+| Várias sementes por configuração (bateria `modeling.sweep`) | `sweep_<data>/` | ✅ |
+| Ensemble da GRU: média dos quantis de 5 sementes (`modeling.ensemble`), usado ao vivo e no painel | `gru_<data>_ens5` | ✅ |
 
 ### Arquivos
 

@@ -96,9 +96,27 @@ def coverage_by_horizon(by_h: dict[str, dict], theme: str = "dark") -> go.Figure
 
 
 def training_curve(history: pd.DataFrame, theme: str = "dark") -> go.Figure:
-    """Perda pinball de treino e validação por época, com a melhor época marcada."""
+    """Perda pinball de treino e validação por época, com a melhor época marcada.
+
+    Com a coluna `seed` (histórico de um ensemble), desenha uma curva por semente e marca a melhor
+    época de cada uma.
+    """
     c = THEMES[theme]
     fig = go.Figure()
+    if "seed" in history:
+        for i, (seed, h) in enumerate(history.groupby("seed")):
+            for col, name, color in (("train_loss", "treino", c["ink2"]), ("val_loss", "validação", c["gru"])):
+                fig.add_trace(go.Scatter(x=h["epoch"], y=h[col], name=name, legendgroup=name, showlegend=i == 0,
+                                         mode="lines", line=dict(color=color, width=1.5), opacity=0.75,
+                                         hovertemplate=f"semente {seed} · {name}: %{{y:.4f}}<extra></extra>"))
+        best = history.loc[history.groupby("seed")["val_loss"].idxmin()]
+        fig.add_trace(go.Scatter(x=best["epoch"], y=best["val_loss"], name="melhor época", mode="markers",
+                                 marker=dict(symbol="diamond", size=9, color=c["gru"], line=dict(color=c["surface"], width=1)),
+                                 customdata=best["seed"],
+                                 hovertemplate="semente %{customdata}: melhor época %{x}<extra></extra>"))
+        fig.update_xaxes(title_text="época")
+        fig.update_yaxes(title_text="perda pinball (padronizada)")
+        return base_layout(fig, 320, theme)
     fig.add_trace(go.Scatter(x=history["epoch"], y=history["train_loss"], name="treino", mode="lines+markers",
                              line=dict(color=c["ink2"], width=2), marker=dict(size=6, color=c["ink2"]),
                              hovertemplate="treino: %{y:.4f}<extra></extra>"))

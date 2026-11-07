@@ -32,3 +32,6 @@ __pycache__/
 .Rhistory
 .RData
 .Rproj.user/
+
+# demo: site montado por demo/build.py site (o GitHub Actions monta o seu)
+/demo/_site/

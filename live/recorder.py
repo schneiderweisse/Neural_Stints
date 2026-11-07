@@ -27,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 from live.laps import session_key
+from live.power import keep_awake
 
 ROOT = Path(__file__).resolve().parents[1]
 LIVE = ROOT / "data" / "live"
@@ -128,6 +129,8 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=LIVE)
     ap.add_argument("--stop-after", type=float, help="segundos (para testes)")
     args = ap.parse_args()
+    if keep_awake(display=True):
+        print("modo acordado: o Windows não suspende nem apaga a tela enquanto o gravador roda (não feche a tampa)")
     try:
         record(args.url, args.out, stop_after=args.stop_after)
     except KeyboardInterrupt:

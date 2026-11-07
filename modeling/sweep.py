@@ -30,6 +30,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from live.power import keep_awake
 from modeling.results import RUNS
 
 PY = sys.executable
@@ -46,17 +47,6 @@ def rid(split: str, cfg: tuple, seed: int) -> str:
 
 def log(msg: str) -> None:
     print(f"{datetime.now():%H:%M:%S} {msg}", flush=True)
-
-
-def keep_awake() -> None:
-    """Pede ao Windows para não suspender enquanto este processo roda (a tela ainda pode apagar).
-
-    Vale só durante a execução: o pedido acaba sozinho quando a bateria termina ou é interrompida.
-    """
-    if sys.platform == "win32":
-        import ctypes
-        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
-        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
 
 
 class Sweep:
@@ -191,12 +181,12 @@ class Sweep:
                          f"{ms(g['test_after_pit_mae'])} |")
         if fin.empty:
             return "\n".join(lines) + "\n"
-        pick = fin.sort_values("val_pinball").iloc[0]
+        members = " ".join(f"runs/{self.root.name}/{r}" for r in fin.sort_values("seed")["run_id"])
         lines += ["", "## Modelo sugerido para o ao vivo", "",
-                  f"`{pick['run_id']}`: a semente da configuração escolhida com a menor perda na validação "
-                  f"(MAE no teste {pick['test_mae']:.3f} s). Para usá-lo no live.predict:", "",
-                  "```bash", f"cp -r runs/{self.root.name}/{pick['run_id']} runs/gru_{datetime.now():%Y%m%d}_best", "```", "",
-                  "O previsor e o painel usam a GRU mais recente em runs/, então a cópia passa a ser a usada."]
+                  f"A média dos quantis das {len(fin)} sementes da configuração escolhida (ensemble). Para criá-lo:", "",
+                  "```bash", f".venv/Scripts/python -m modeling.ensemble {members}", "```", "",
+                  "O comando mostra o erro do ensemble na validação e no teste. O previsor e o painel usam a GRU mais "
+                  "recente em runs/, então o ensemble passa a ser o usado."]
         return "\n".join(lines) + "\n"
 
 
@@ -238,8 +228,19 @@ def main() -> None:
     if s.empty:
         log("nenhum treino terminou; nada a resumir")
         return
-    best = sw.best_config(s, len(seeds3))
-    log(f"fase 3: configuração escolhida pela validação {best}")
+    # a escolha é gravada quando a fase 2 está completa: retomar a bateria não escolhe de novo (senão as
+    # sementes extras da fase 3 mudariam a escolha a cada execução)
+    choice = sw.root / "phase3.json"
+    if choice.exists():
+        best = tuple(json.loads(choice.read_text(encoding="utf-8"))["config"])
+        log(f"fase 3: configuração já escolhida {best} ({choice.name})")
+    else:
+        best = sw.best_config(s, len(seeds3))
+        complete = {rid("split3", cfg, seed) for cfg in grid for seed in seeds3} <= set(s["run_id"])
+        if complete:
+            choice.write_text(json.dumps({"config": list(best), "chosen_at": datetime.now().isoformat(timespec="seconds")}),
+                              encoding="utf-8")
+        log(f"fase 3: configuração escolhida pela validação {best}" + ("" if complete else " (provisória: fase 2 incompleta)"))
     for seed in seeds5:
         sw.train("split3", best, seed)
 

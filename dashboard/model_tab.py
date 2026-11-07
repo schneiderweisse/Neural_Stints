@@ -47,8 +47,15 @@ def render() -> None:
     tile(cols[2], "Cobertura p10–p90", f"{gt['overall']['coverage_80']:.0%}", "alvo: 80%")
     tile(cols[3], "Depois de uma parada", f"{gt['by_same_stint']['False']['mae_s']:.2f} s",
          f"ingênuo {nt['by_same_stint']['False']['mae_s']:.2f} s")
-    tile(cols[4], "Modelo", f"{cfg['n_params']:,} parâmetros".replace(",", "."),
-         f"melhor época {cfg['best_epoch']} · {cfg['train_seconds'] / 60:.1f} min de treino")
+    ens = cfg.get("ensemble")
+    if ens:
+        k, epochs = len(ens["members"]), ens["best_epochs"]
+        tile(cols[4], "Modelo (ensemble)", f"{k} sementes",
+             f"média dos quantis · {k} × {ens['n_params_member']:,} parâmetros".replace(",", ".") +
+             f" · melhores épocas {min(epochs)}–{max(epochs)} · {cfg['train_seconds'] / 60:.0f} min de treino")
+    else:
+        tile(cols[4], "Modelo", f"{cfg['n_params']:,} parâmetros".replace(",", "."),
+             f"melhor época {cfg['best_epoch']} · {cfg['train_seconds'] / 60:.1f} min de treino")
 
     st.subheader("Erro por horizonte")
     by_h = {m: {"races": {SPLIT_LABEL[s]: {"by_h": {int(h): v["mae_s"] for h, v in r["splits"][s]["by_h"].items()}}
@@ -68,8 +75,13 @@ def render() -> None:
         st.markdown("**Curva de treino**")
         if "history" in G:
             st.plotly_chart(training_curve(G["history"]), width="stretch", config={"displaylogo": False})
-            st.caption("Perda pinball média nos três quantis, com o alvo padronizado. O treino para quando a "
-                       "validação não melhora por 8 épocas e volta aos pesos da melhor época.")
+            if ens:
+                st.caption("Uma curva por semente, com a perda pinball média nos três quantis e o alvo padronizado. "
+                           "Cada semente para quando a validação não melhora por 8 épocas e volta aos pesos da sua "
+                           "melhor época (losangos). A previsão é a média dos quantis das redes.")
+            else:
+                st.caption("Perda pinball média nos três quantis, com o alvo padronizado. O treino para quando a "
+                           "validação não melhora por 8 épocas e volta aos pesos da melhor época.")
 
     left, right = st.columns(2)
     with left:

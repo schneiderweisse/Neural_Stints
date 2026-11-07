@@ -1,4 +1,5 @@
 """Carregamento de dados do painel, com cache do Streamlit."""
+import gzip
 import json
 from pathlib import Path
 
@@ -20,13 +21,20 @@ def fetch_live_state(url: str) -> dict | None:
     return HttpSource(url).fetch()
 
 
+REPLAY_FILE = "replay.json.gz"   # estados a cada 30 s de uma gravação, feito por demo/build.py
+
+
 def recordings() -> list[Path]:
-    return sorted(LIVE.glob("*/recording*.jsonl"))
+    """Gravações em data/live; na demo, que não leva o fluxo bruto, as reproduções já calculadas (replay.json.gz)."""
+    return sorted(LIVE.glob("*/recording*.jsonl")) or sorted(LIVE.glob(f"*/{REPLAY_FILE}"))
 
 
 @st.cache_resource(show_spinner="Reproduzindo a gravação…")
 def recording_snapshots(path: str, every: float = 30.0) -> list[tuple[float, dict]]:
     """Estados da sessão gravada a cada `every` segundos do relógio da gravação."""
+    if path.endswith(REPLAY_FILE):
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return [(clock, state) for clock, state in json.load(f)]
     return [(clock, json.loads(json.dumps(state))) for clock, state in ReplaySource(path, interval=every)]
 
 

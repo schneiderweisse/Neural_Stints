@@ -48,6 +48,8 @@ def iter_sessions(years: Iterable[int] | None = None, types: Iterable[str] | Non
     years = sorted(years) if years is not None else sorted(int(p.name) for p in RAW.iterdir() if p.name.isdigit())
     types = set(types) if types is not None else None
     for year in years:
+        if not (RAW / str(year)).is_dir():                # ano não baixado (ex.: uma gravação antiga ao vivo)
+            continue
         for event in sorted(p for p in (RAW / str(year)).iterdir() if p.is_dir()):
             is_gp = event.name.endswith("Grand Prix")
             is_testing = event.name.startswith("Pre-Season")

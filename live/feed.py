@@ -15,6 +15,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_URL = "http://localhost:4000/api/current"
@@ -40,6 +41,25 @@ def merge(base, update):
                     base.append(v)
         return base
     return update
+
+
+STALE_AFTER = 90.0   # s; a F1 manda um Heartbeat a cada ~15 s enquanto o feed está vivo
+
+
+def heartbeat_age(state: dict | None) -> float | None:
+    """Segundos desde o último Heartbeat da F1 no estado (None se não houver).
+
+    Com o f1-dash desconectado da F1 (ou o notebook acordando de uma suspensão), o estado fica parado
+    e esta idade cresce; acima de STALE_AFTER, os dados não estão mais chegando.
+    """
+    utc = ((state or {}).get("Heartbeat") or {}).get("Utc")
+    if not utc:
+        return None
+    try:
+        then = datetime.fromisoformat(str(utc)[:26].rstrip("Z") + "+00:00")
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - then).total_seconds()
 
 
 class HttpSource:

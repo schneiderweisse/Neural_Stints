@@ -1,0 +1,44 @@
+# Publica a demo do painel (demo/) no GitHub Pages.
+# Antes do primeiro deploy: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Demo no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "demo/**"
+      - "dashboard/**"
+      - "live/feed.py"
+      - "live/laps.py"
+      - "modeling/figures.py"
+      - ".github/workflows/demo.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Montar o site (só biblioteca padrão)
+        run: python demo/build.py site _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

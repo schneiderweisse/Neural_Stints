@@ -67,6 +67,23 @@ def as_list(x) -> list:
     return x or []
 
 
+SECTOR_TOL = 0.05   # s; o tempo do feed e a soma dos setores da mesma volta batem ao milésimo
+
+
+def reconcile(row: dict) -> None:
+    """Se o tempo do feed não bate com a soma dos setores da mesma volta, fica a soma.
+
+    Os setores são lidos no instante em que a volta termina, então pertencem a ela; um tempo que não
+    bate com eles foi atribuído à volta errada.
+    """
+    sectors = (row.get("s1"), row.get("s2"), row.get("s3"))
+    if row.get("lap_time") is None or None in sectors:
+        return
+    total = round(sum(sectors), 3)
+    if abs(total - row["lap_time"]) > SECTOR_TOL:
+        row["lap_time"], row["lap_time_source"] = total, "sectors"
+
+
 def session_key(state: dict) -> str | None:
     info = state.get("SessionInfo") or {}
     year = str(info.get("StartDate", ""))[:4]
@@ -160,15 +177,19 @@ class LapTracker:
                     last_time_seen = last_time
                 tr = self.drivers[num] = DriverTrack(laps=laps_now, in_pit_now=in_pit, last_time=last_time_seen,
                                                      stints_seen=n_stints, lap_stint=max(n_stints - 1, 0))
-            if tr.pending is not None and last_time != tr.last_time:
+            n = int(line.get("NumberOfLaps") or 0)
+            # tempo atrasado da volta que espera. Se chegou junto com uma volta nova, é dessa volta nova:
+            # a que esperava nunca recebeu tempo (volta de saída do box, por exemplo) e fica com a soma
+            # dos setores, logo abaixo. Sem isto, cada volta seguinte ficava com o tempo da próxima.
+            if tr.pending is not None and last_time != tr.last_time and n <= tr.laps:
                 tr.pending["lap_time"], tr.pending["lap_time_source"] = parse_time(last_time), "feed"
+                reconcile(tr.pending)
                 tr.last_time, tr.pending = last_time, None
             if status:
                 tr.statuses.add(status)
             tr.pit_in |= in_pit and not tr.in_pit_now          # entrou no pit lane
             tr.pit_out |= (tr.in_pit_now and not in_pit) or bool(line.get("PitOut"))
             tr.in_pit_now = in_pit
-            n = int(line.get("NumberOfLaps") or 0)
             if n > tr.laps and (num, n) in self.by_key:       # já gravada (retomada de uma fonte que recomeçou)
                 tr.laps, tr.last_time = n, last_time
                 tr.statuses, tr.pit_in, tr.pit_out = ({status} if status else set()), False, in_pit
@@ -182,6 +203,7 @@ class LapTracker:
                 if n > 1 and last_time == tr.last_time:          # LastLapTime ainda é o da volta anterior
                     row["lap_time"], row["lap_time_source"] = None, None
                     tr.pending = row
+                reconcile(row)
                 tr.last_time = last_time
                 row["deleted"] = self.deleted.get((num, n), False)
                 self.by_key[(num, n)] = row

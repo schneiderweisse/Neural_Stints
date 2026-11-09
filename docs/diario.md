@@ -2,6 +2,66 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 8 de novembro de 2026
+
+### GP de São Paulo: o primeiro teste ao vivo
+
+- **Tudo no ar às 14:04, com a corrida ainda na volta 1.** O f1-dash, o gravador, o leitor, o previsor e o painel rodaram até o fim, sem queda.
+  - Gravação: 73.750 mensagens, com no máximo 30 s sem Heartbeat. O modo acordado segurou as 2 h de corrida e as 2 h 40 do quali.
+  - Leitor: 1.435 voltas de 21 carros. A correção de ontem no `write_atomic` segurou, com o painel lendo os arquivos a cada segundo.
+  - Previsor: 12.603 previsões do ensemble de 5 sementes.
+- **A corrida:** largada com intermediário, troca para macio nas voltas 14 a 17, quase todos com um segundo jogo de macios entre as voltas 32 e 53, e chuva de novo a partir da volta 58. Norris venceu, com Verstappen, que largou em 21º, a 14,6 s.
+- **Resultados** (análise completa no [relatório da corrida](race_reports/2026_sao_paulo.md)):
+
+  | Trecho | MAE GRU | MAE ingênuo | Viés GRU | Cobertura |
+  |---|---|---|---|---|
+  | Voltas limpas de pneu liso, corrida toda | 1,115 s | 1,534 s | +0,43 s | 50% |
+  | Conjunto de teste, para comparar | 0,476 s | 0,655 s | +0,02 s | 88% |
+  | Secagem (voltas 17–30) | 1,14 s | 2,97 s | +0,66 s | 50% |
+  | Seco estável (voltas 31–57) | 0,76 s | 0,70 s | +0,49 s | 65% |
+  | Chuva em pneu liso (voltas 58–62) | 2,51 s | 2,74 s | −2,51 s | 8% |
+  | Intermediário (largada e final) | 9,6 e 11,7 s | 0,9 e 4,7 s | −9,6 e −11,7 s | 0% |
+
+- **O que aprendi:**
+  - A rede ganha quando o ritmo tem tendência e empata ou perde quando ele está estável.
+  - Com pneu de chuva ela está fora do que aprendeu, porque o treino não tem corridas molhadas.
+  - **Viés em seco:** das quatro explicações testadas, a idade do pneu não explica e a referência dos treinos livres explica pouco. A tendência que a rede não projeta explica o crescimento do viés com o horizonte. O nível de ritmo atípico é compatível, mas não está comprovado.
+  - **Correção online rejeitada:** subtrair o erro recente melhora o seco desta corrida (0,858 → 0,726 s), mas piora a validação (0,558 → 0,605 s) e o teste (0,465 → 0,537 s).
+  - **Alarme de chuva:** na volta 58, 80% do pelotão andou acima do p90 previsto, contra 3,8% em média nas voltas 31 a 56. O feed só marcou chuva 6 minutos depois. É uma corrida só, e falta medir os alarmes falsos nas outras.
+  - **Cenário de parada:** rodado depois da corrida, ele previu cerca de metade do ganho real do pneu novo (0,72–0,84 s por volta, contra 1,41–1,82 s).
+- **Correção do que eu tinha concluído durante a corrida:** o "erro ao vivo" do painel não mistura voltas molhadas e secas. A máscara `clean` só aceita pneu liso, então ele ignora o intermediário.
+- **Painel, ajustes pedidos durante a corrida:**
+  - Eixo de voltas só com inteiros, com uma marca por volta. Os rótulos rareiam acima de 30 e de 60 voltas para não se sobrepor.
+  - Comparação de dois pilotos na previsão da GRU, no mesmo gráfico, cada um com sua cor, marcador e faixa.
+  - Tempos de volta em minuto:segundo.milésimo no eixo e ao passar o mouse. Os gráficos usam um eixo de data do Plotly, que escolhe as marcas sozinho.
+- **Demo atualizada:** a aba Corridas gravadas agora abre no GP de São Paulo, com as previsões feitas ao vivo, e mantém a corrida de 2019. Os dados da demo foram a 5,1 MB.
+- **Defeito na reprodução de sessões lidas ao vivo.** Nessas sessões, o `laps.parquet` guarda o horário real, e a reprodução comparava com o tempo desde o início da gravação. Por isso nenhuma volta aparecia. Agora a reprodução usa o Heartbeat do momento para essas sessões. Testado na demo (corridas de 2026 e 2019) e no painel completo (corrida de 2026).
+- **Relatório:** [`docs/race_reports/2026_sao_paulo.md`](race_reports/2026_sao_paulo.md), com métricas por fase, o estudo de caso Norris × Verstappen e como relacionar ritmo, pneu, stint, k voltas e paradas. O raciocínio das equipes é inferência a partir dos dados, porque não encontrei relatos da corrida de 2026.
+
+## 7 de novembro de 2026
+
+### TL3 e classificação
+
+- **TL3:** gravado a partir das 11:42. O leitor caiu às 12:27, 3 minutos antes do fim.
+  - **Causa:** o Windows recusou a troca do `laps.parquet` (`PermissionError`) porque outro programa estava com o arquivo aberto, provavelmente o painel lendo naquele instante.
+  - **Correção:** o `write_atomic` tenta de novo por até ~5 s. Testado com o arquivo aberto por outro processo: a troca passa assim que ele fecha.
+  - **Recuperação:** o `laps.parquet` foi refeito a partir da gravação, de 302 para 372 voltas. A volta 7 de Leclerc só apareceu no leitor ao vivo e foi mantida.
+- **Atraso no painel:** uma volta no painel demorava mais que no ao vivo. `localhost` tenta IPv6 primeiro, e o `realtime` só escuta IPv4, o que custava ~2 s por conexão. Com `127.0.0.1`, cada atualização leva de 40 a 95 ms, e o painel pode atualizar a cada 1 s.
+- **Gravador preso entre sessões:** ele não passou sozinho do TL3 para a classificação. Por isso, a regra para sessões seguidas é religar o gravador e o leitor depois que o f1-dash já mostrar a sessão nova.
+- **Classificação:** toda na chuva, com bandeira vermelha aos 2 minutos do Q1 (15:02) e reinício às 16:26. Gravada do começo ao fim: 14.200 mensagens, no máximo 15 s sem Heartbeat e 391 voltas (296 de pneu de chuva extrema e 79 de intermediário).
+- **Referência da corrida:** a regra do treino para quali molhado funcionou. Os 22 do grid ficaram com a melhor volta de pneu liso dos treinos livres, de 1:11.622 (VER) a 1:14.060 (STR).
+
+### Quanto ainda dá para ganhar
+
+- **Piso do erro:** um oráculo que vê o stint inteiro (curva quadrática ajustada a todas as voltas) erra 0,33 s no teste. A GRU erra 0,38 s na volta seguinte e 0,53 s em 10 voltas. Na volta seguinte, ela já está perto do piso; o que sobra é tendência em horizontes longos e depois das paradas.
+- **Telemetria:** não temos histórico baixado, e o feed ao vivo não traz telemetria nem posição no mapa. Um modelo com telemetria só serviria como experimento fora do ao vivo.
+- **GPU:** o gargalo hoje não é poder de cálculo. Cada treino leva poucos minutos em CPU, e a bateria mostrou que mudar hiperparâmetros não muda o erro.
+
+### Demo no GitHub Pages
+
+- O primeiro deploy falhou porque o Pages ainda não estava ativo. Com "GitHub Actions" escolhido como fonte, o workflow passou e a demo entrou no ar.
+- **A parte ao vivo não pode ir para o Pages:** o navegador bloqueia a leitura do feed da F1 e do f1-dash público a partir de outro site (CORS). Por isso a demo fica com as corridas gravadas.
+
 ## 6 de novembro de 2026
 
 ### Demo do painel para o GitHub Pages

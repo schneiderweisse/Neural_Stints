@@ -190,7 +190,7 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Inclinação da degradação contra o modelo misto | v1 |
 | Média ± desvio entre sementes | ✅ na bateria (`report.md`) |
 | Bootstrap por corrida | v1 |
-| Erro ao vivo em Interlagos | ✅ calculado depois da corrida, com os tempos oficiais |
+| Erro ao vivo em Interlagos | ✅ calculado depois da corrida ([relatório](race_reports/2026_sao_paulo.md)), com os tempos do feed gravado |
 
 ### Painel
 
@@ -201,3 +201,13 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Backtest | previsto × real volta a volta nas corridas de validação e teste (incluindo Austin e México) |
 | Ao vivo | Interlagos: por piloto, voltas reais e previsão das próximas 10 voltas no cenário A, com faixa p10–p90; tabela de todos os pilotos |
 | Simulador de estratégia (cenário B) | v1 |
+
+## Relatórios de corrida
+
+Cada corrida com a rede ao vivo tem um relatório em `docs/race_reports/<ano>_<circuito>.md`, com as figuras na pasta de mesmo nome. Ele traz as métricas por fase da corrida e estudos de caso.
+
+| Corrida | Modelo | MAE GRU | MAE ingênuo | Cobertura p10–p90 | Relatório |
+|---|---|---|---|---|---|
+| GP de São Paulo, 8/11/2026 | `gru_20261106_ens5` | 1,115 s | 1,534 s | 50% | [2026_sao_paulo.md](race_reports/2026_sao_paulo.md) |
+
+As medidas da tabela usam as voltas limpas (`clean`), que só incluem pneu liso. Em corridas com chuva, o relatório avalia as voltas de pneu de chuva à parte, com todas as voltas válidas: com tempo, fora do box, sem SC e sem volta apagada.

@@ -4,7 +4,9 @@ Previsão de ritmo de corrida e degradação de pneus na Fórmula 1 com redes ne
 
 > Projeto final da disciplina **Redes Neurais 2**, do Bacharelado em Estatística da Universidade de Brasília (UnB). Em desenvolvimento.
 
-**Demo do painel:** https://schneiderweisse.github.io/Neural_Stints/ (roda no navegador; sem a parte ao vivo, ver [demo/README.md](demo/README.md)).
+**Demo do painel:** https://schneiderweisse.github.io/Neural_Stints/ (roda no navegador, com a reprodução do GP de São Paulo de 2026 e as previsões feitas ao vivo; ver [demo/README.md](demo/README.md)).
+
+**Primeiro teste ao vivo:** [relatório do GP de São Paulo de 2026](docs/race_reports/2026_sao_paulo.md).
 
 ## Motivação
 
@@ -97,7 +99,7 @@ O painel tem três abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sess�
 
 O cabeçalho mostra os logos da F1 e da UnB se os arquivos estiverem em `dashboard/assets/` (ver o README da pasta). Por serem marcas registradas, eles ficam fora do git.
 
-A demo pública em `demo/` usa as mesmas abas, sem a parte ao vivo: a reprodução da corrida de 2019 e o ajuste do modelo, rodando no navegador com stlite e publicada no GitHub Pages. No lugar do logo da F1, o cabeçalho dela tem "F1" em texto. Como montar e atualizar: [demo/README.md](demo/README.md).
+A demo pública em `demo/` usa as mesmas abas, sem a parte ao vivo: a reprodução do GP de São Paulo de 2026 (com as previsões feitas ao vivo) e da corrida de 2019, e o ajuste do modelo, rodando no navegador com stlite e publicada no GitHub Pages. No lugar do logo da F1, o cabeçalho dela tem "F1" em texto. Como montar e atualizar: [demo/README.md](demo/README.md).
 
 Se o leitor for reiniciado no meio da sessão, ele retoma o histórico já gravado. O `live/history.py` transforma esse histórico nas variáveis do treino, usando as mesmas funções do pipeline.
 
@@ -113,10 +115,10 @@ dashboard/  painel Streamlit (abas Ao Vivo, GRU v0 e Tarefas A e B)
 demo/       demo do painel para o GitHub Pages (stlite, sem a parte ao vivo) e os seus dados enxutos
 runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)
-docs/       documentos e figuras do projeto
+docs/       documentos, figuras e relatórios de corrida (race_reports/)
 ```
 
-O formato dos resultados dos modelos e as métricas calculadas estão em [docs/resultados.md](docs/resultados.md). O que foi feito e decidido a cada dia está no [diário de desenvolvimento](docs/diario.md).
+O formato dos resultados dos modelos e as métricas calculadas estão em [docs/resultados.md](docs/resultados.md). O que foi feito e decidido a cada dia está no [diário de desenvolvimento](docs/diario.md). Os resultados das corridas ao vivo estão em [docs/race_reports/](docs/race_reports/).
 
 ## Aviso
 
@@ -128,7 +130,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
 
-*Atualizado em 5 de novembro de 2026.*
+*Atualizado em 8 de novembro de 2026.*
 
 ### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
 
@@ -145,9 +147,9 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Qui 5 | Serviço ao vivo: gravador das sessões | ✅ |
 | Qui 5 | Serviço ao vivo: previsões da GRU sobre o histórico | ✅ |
 | Qui 5 | Painel Streamlit: abas Ao Vivo e GRU v0 (antecipado das semanas 2 e 3) | ✅ |
-| Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ⏳ |
-| Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 | ⏳ |
-| Dom 8 | 🔴 **GP de São Paulo (14h00):** v0 ao vivo e gravação da corrida | ⏳ |
+| Sex 6 | Ensaio 1 no TL1 (12h30) e TL2 (16h00): validar a leitura dos dados ao vivo | ✅ |
+| Sáb 7 | Ensaio 2 no TL3 (11h30) e quali (15h00), que fornece a referência; congelar a v0 (quali molhado: a referência veio dos treinos livres) | ✅ |
+| Dom 8 | 🔴 **GP de São Paulo (14h00):** v0 ao vivo e gravação da corrida ([relatório](docs/race_reports/2026_sao_paulo.md)) | ✅ |
 
 ### Semanas 2 e 3 · 9 a 22 de novembro · v1 em Las Vegas
 

@@ -83,6 +83,27 @@ def logo(name: str, height: int, alt: str, assets: Path = ASSETS) -> str:
     return ""
 
 
+def keep_widget_state() -> None:
+    """Mantém o valor dos controles das seções fechadas.
+
+    O Streamlit apaga o estado de um controle que não aparece numa execução. Reatribuir cada chave no
+    começo da execução faz o valor sobreviver, o mesmo recurso que a documentação indica para apps de
+    várias páginas. Chame antes de criar qualquer controle.
+    """
+    for key in list(st.session_state.keys()):
+        try:
+            st.session_state[key] = st.session_state[key]
+        except Exception:                 # chaves que não aceitam valor pela Session State API
+            pass
+
+
+def section_nav(names: list[str], key: str = "section") -> str:
+    """Seletor das seções do painel. Ao contrário de st.tabs, que roda o código de todas as abas a cada
+    clique, só a seção escolhida roda."""
+    return st.segmented_control("Seção", names, default=names[0], required=True, key=key,
+                                label_visibility="collapsed") or names[0]
+
+
 def inject_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
 

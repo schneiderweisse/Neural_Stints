@@ -2,6 +2,29 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 9 de novembro de 2026
+
+### Demo mais rápida
+
+- **Sintoma:** a demo publicada demorava para responder. Trocar o piloto na aba GRU v0 levava 4,3 s no navegador.
+- **Causas, medidas com o perfilador do Python:**
+  - **Listas de pilotos:** quatro linhas montavam a lista refazendo o conjunto de pilotos da tabela inteira para cada piloto conferido, como em `[d for d in ordem if d in set(tabela["driver"])]`. Isso respondia por 40% do tempo de cada execução: 864 mil passos só nessas listas.
+  - **Abas:** com `st.tabs`, qualquer clique roda o código das três abas e monta os 10 gráficos.
+  - **Cópias de tabela:** o `st.cache_data` devolve uma cópia da tabela a cada chamada, e as 73 mil previsões eram copiadas a cada clique. A lista de corridas também percorria essas 73 mil linhas, uma a uma.
+- **Correções:**
+  - as listas usam o conjunto montado uma vez;
+  - a demo troca as abas por um seletor de seção, e só a seção aberta roda;
+  - o valor dos controles das seções fechadas é mantido (`layout.keep_widget_state`);
+  - os gráficos da aba GRU v0 ficam em cache, porque só dependem dos runs, da corrida e do piloto;
+  - as tabelas de previsões e de voltas usam `st.cache_resource`, sem cópia.
+- **Resultado:**
+  - **Fora do navegador:** cada clique caiu de 5,3 s para 0,08 a 0,23 s, conforme a seção.
+  - **Trocar o piloto na aba GRU v0** caiu de 4,3 s para 0,7 s no navegador (versão publicada × versão nova servida localmente).
+  - **Trocar de seção** leva de 0,9 a 1,2 s; abrir a GRU v0 pela primeira vez, 2 s.
+  - **Reproduzir** agora acompanha o intervalo de 1,5 s (média de 1,4 s por passo).
+  - **Abertura da página:** caiu de ~35 s para ~20 s, com os pacotes já no cache do navegador. A primeira visita ainda baixa o Python e os pacotes.
+- **Painel completo:** continua com as abas, mas ganha as mesmas correções nas listas e nos caches.
+
 ## 8 de novembro de 2026
 
 ### GP de São Paulo: o primeiro teste ao vivo

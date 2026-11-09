@@ -66,12 +66,15 @@ def run_files(run_id: str) -> dict:
     return out
 
 
-@st.cache_data
+# As tabelas abaixo ficam em cache_resource: a mesma tabela é devolvida a cada chamada, sem a cópia que o
+# cache_data faz (73 mil previsões copiadas a cada clique pesavam, ainda mais na demo, no navegador).
+# Quem usa filtra ou copia antes de alterar; nunca altere a tabela devolvida.
+@st.cache_resource(show_spinner=False)
 def run_predictions(run_id: str) -> pd.DataFrame:
     return pd.read_parquet(RUNS / run_id / "predictions.parquet")
 
 
-@st.cache_data
+@st.cache_resource(show_spinner=False)
 def race_laps(race_label: str) -> pd.DataFrame:
     cols = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "pit_out", "neutralised", "position",
             "compound", "stint", "tyre_life", "fresh_tyre"]

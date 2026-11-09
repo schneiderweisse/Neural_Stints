@@ -136,14 +136,15 @@ def render() -> None:
         st.info("Ainda não há runs da GRU em runs/.")
         return
     gp = data.run_predictions(grus[0])
-    order = gp.sort_values("race_id")["race_label"].drop_duplicates()
+    order = gp[["race_id", "race_label"]].drop_duplicates().sort_values("race_id")["race_label"].drop_duplicates()
     races = [r for r in order if r not in HIDDEN_RACES]
     c1, c2 = st.columns([1, 2])
     race = c1.selectbox("Corrida (validação e teste)", races, index=len(races) - 1, key="tasks_race")
     laps = data.race_laps(race)
     final = laps.sort_values("lap").groupby("driver").tail(1).sort_values(["position", "lap"], ascending=[True, False])
     pred = gp[gp["race_label"] == race]
-    options = [d for d in final["driver"] if d in set(pred["driver"])]
+    have = set(pred["driver"])
+    options = [d for d in final["driver"] if d in have]
     drivers = c2.multiselect("Pilotos (até dois, pela posição final)", options, default=options[:2], max_selections=2,
                              key="tasks_drivers")
     st.caption(f"Modelo: {grus[0]}. Corrida fora do treino, então as previsões são as mesmas do backtest.")

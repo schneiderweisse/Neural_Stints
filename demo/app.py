@@ -33,12 +33,10 @@ st.markdown(f"<div class='demo-note'>Demonstração do painel, rodando inteirame
             f"Código e documentação: <a href='{REPO}'>github.com/schneiderweisse/Neural_Stints</a>."
             "</div>", unsafe_allow_html=True)
 
-replay, gru, tasks = st.tabs(["Corridas gravadas", "GRU v0", "Tarefas A e B"])
-with replay:
-    live_tab.render(demo=True)
-with gru:
-    model_tab.render()
-with tasks:
-    tasks_tab.render()
+# só a seção aberta roda: no navegador, rodar as três a cada clique deixava a demo lenta
+layout.keep_widget_state()
+SECTIONS = {"Corridas gravadas": lambda: live_tab.render(demo=True), "GRU v0": model_tab.render,
+            "Tarefas A e B": tasks_tab.render}
+SECTIONS[layout.section_nav(list(SECTIONS))]()
 
 layout.footer()

@@ -24,6 +24,38 @@ def race_table(g: dict, n: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Os gráficos desta aba só dependem dos runs, da corrida e do piloto escolhidos: ficam guardados entre as
+# execuções. Montar uma figura do Plotly é a parte cara (na demo, que roda o Python no navegador, ainda mais).
+@st.cache_resource(max_entries=8, show_spinner=False)
+def summary_figures(gru_id: str, naive_id: str) -> dict:
+    G, N = data.run_files(gru_id), data.run_files(naive_id)
+    g, n = G["metrics"], N["metrics"]
+    gt, nt = g["splits"]["test"], n["splits"]["test"]
+    by_h = {m: {"races": {SPLIT_LABEL[s]: {"by_h": {int(h): v["mae_s"] for h, v in r["splits"][s]["by_h"].items()}}
+                          for s in ("val", "test")}} for m, r in (("gru", g), ("naive", n))}
+    cov = {s: {int(h): v["coverage_80"] for h, v in g["splits"][s]["by_h"].items()} for s in ("val", "test")}
+    comps = [c for c in ("SOFT", "MEDIUM", "HARD") if c in gt["by_compound"]]
+    cats, keys = ["mesmo stint (tarefa A)", "depois da parada (tarefa B)"], ["True", "False"]
+    return {
+        "by_h": mae_by_horizon(by_h, ["validação", "teste"], theme="dark"),
+        "coverage": coverage_by_horizon(cov),
+        "training": training_curve(G["history"]) if "history" in G else None,
+        "compound": grouped_bars(comps, {"gru": [gt["by_compound"][c]["mae_s"] for c in comps],
+                                         "naive": [nt["by_compound"][c]["mae_s"] for c in comps]}, "MAE (s)"),
+        "same_stint": grouped_bars(cats, {"gru": [gt["by_same_stint"][k]["mae_s"] for k in keys],
+                                          "naive": [nt["by_same_stint"][k]["mae_s"] for k in keys]}, "MAE (s)"),
+    }
+
+
+@st.cache_resource(max_entries=32, show_spinner=False)
+def example_figure(gru_id: str, naive_id: str, race: str, drv: str):
+    gp, npred = data.run_predictions(gru_id), data.run_predictions(naive_id)
+    laps = data.race_laps(race)
+    anchors = list(range(10, int(laps["lap"].max()), 10))
+    preds = {"gru": gp[gp["race_label"] == race], "naive": npred[npred["race_label"] == race]}
+    return stint_forecasts(laps, preds, [drv], anchors, [f"{drv} · {race}"], theme="dark"), anchors
+
+
 def render() -> None:
     grus, naives = data.runs("gru"), data.runs("naive")
     if not grus or not naives:
@@ -57,24 +89,21 @@ def render() -> None:
         tile(cols[4], "Modelo", f"{cfg['n_params']:,} parâmetros".replace(",", "."),
              f"melhor época {cfg['best_epoch']} · {cfg['train_seconds'] / 60:.1f} min de treino")
 
+    figs = summary_figures(gru_id, naive_id)
     st.subheader("Erro por horizonte")
-    by_h = {m: {"races": {SPLIT_LABEL[s]: {"by_h": {int(h): v["mae_s"] for h, v in r["splits"][s]["by_h"].items()}}
-                          for s in ("val", "test")}} for m, r in (("gru", g), ("naive", n))}
-    st.plotly_chart(mae_by_horizon(by_h, ["validação", "teste"], theme="dark"), width="stretch",
-                    config={"displaylogo": False})
+    st.plotly_chart(figs["by_h"], width="stretch", config={"displaylogo": False})
 
     left, right = st.columns(2)
     with left:
         st.markdown("**Calibração do intervalo p10–p90 por horizonte**")
-        cov = {s: {int(h): v["coverage_80"] for h, v in g["splits"][s]["by_h"].items()} for s in ("val", "test")}
-        st.plotly_chart(coverage_by_horizon(cov), width="stretch", config={"displaylogo": False})
+        st.plotly_chart(figs["coverage"], width="stretch", config={"displaylogo": False})
         o = gt["overall"]
         st.caption(f"No teste, {o['below_p10']:.0%} das voltas ficaram abaixo do p10 (ideal 10%) e {o['below_p90']:.0%} "
                    f"abaixo do p90 (ideal 90%). Largura média do intervalo: {o['width_s']:.2f} s.")
     with right:
         st.markdown("**Curva de treino**")
-        if "history" in G:
-            st.plotly_chart(training_curve(G["history"]), width="stretch", config={"displaylogo": False})
+        if figs["training"] is not None:
+            st.plotly_chart(figs["training"], width="stretch", config={"displaylogo": False})
             if ens:
                 st.caption("Uma curva por semente, com a perda pinball média nos três quantis e o alvo padronizado. "
                            "Cada semente para quando a validação não melhora por 8 épocas e volta aos pesos da sua "
@@ -86,16 +115,10 @@ def render() -> None:
     left, right = st.columns(2)
     with left:
         st.markdown("**Erro por composto (teste)**")
-        comps = [c for c in ("SOFT", "MEDIUM", "HARD") if c in gt["by_compound"]]
-        st.plotly_chart(grouped_bars(comps, {"gru": [gt["by_compound"][c]["mae_s"] for c in comps],
-                                             "naive": [nt["by_compound"][c]["mae_s"] for c in comps]}, "MAE (s)"),
-                        width="stretch", config={"displaylogo": False})
+        st.plotly_chart(figs["compound"], width="stretch", config={"displaylogo": False})
     with right:
         st.markdown("**Mesmo stint × depois de uma parada (teste)**")
-        cats, keys = ["mesmo stint (tarefa A)", "depois da parada (tarefa B)"], ["True", "False"]
-        st.plotly_chart(grouped_bars(cats, {"gru": [gt["by_same_stint"][k]["mae_s"] for k in keys],
-                                            "naive": [nt["by_same_stint"][k]["mae_s"] for k in keys]}, "MAE (s)"),
-                        width="stretch", config={"displaylogo": False})
+        st.plotly_chart(figs["same_stint"], width="stretch", config={"displaylogo": False})
 
     st.subheader("Por corrida")
     st.dataframe(race_table(g, n), hide_index=True, width="stretch",
@@ -105,17 +128,17 @@ def render() -> None:
                                 "cobertura p10–p90": st.column_config.NumberColumn(format="percent")})
 
     st.subheader("Exemplos: previsto × real, volta a volta")
-    gp, npred = data.run_predictions(gru_id), data.run_predictions(naive_id)
-    races = list(dict.fromkeys(gp.sort_values(["split", "race_id"])["race_label"]))
+    gp = data.run_predictions(gru_id)
+    # uma linha por corrida antes de ordenar: percorrer as 73 mil previsões é lento, ainda mais no navegador
+    races = gp[["split", "race_id", "race_label"]].drop_duplicates().sort_values(["split", "race_id"])["race_label"].tolist()
     c1, c2 = st.columns(2)
     race = c1.selectbox("Corrida", races, index=races.index("2026 Austin") if "2026 Austin" in races else 0, key="ex_race")
     laps = data.race_laps(race)
     final = laps.sort_values("lap").groupby("driver").tail(1).sort_values(["position", "lap"], ascending=[True, False])
-    drivers = [d for d in final["driver"] if d in set(gp.loc[gp["race_label"] == race, "driver"])]
+    have = set(gp.loc[gp["race_label"] == race, "driver"])
+    drivers = [d for d in final["driver"] if d in have]
     drv = c2.selectbox("Piloto (pela posição final)", drivers, key="ex_driver")
-    anchors = list(range(10, int(laps["lap"].max()), 10))
-    preds = {"gru": gp[gp["race_label"] == race], "naive": npred[npred["race_label"] == race]}
-    st.plotly_chart(stint_forecasts(laps, preds, [drv], anchors, [f"{drv} · {race}"], theme="dark"),
-                    width="stretch", config={"displaylogo": False})
+    fig, anchors = example_figure(gru_id, naive_id, race, drv)
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
     st.caption(f"Previsões feitas ao fim das voltas {', '.join(map(str, anchors))}, cada uma para as 10 voltas seguintes. "
                "Pontos: tempos reais das voltas limpas. Linhas pontilhadas: entrada nos boxes. Faixas cinza: SC/VSC.")

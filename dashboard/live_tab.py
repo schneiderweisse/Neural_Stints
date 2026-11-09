@@ -201,7 +201,8 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
         st.caption("Ainda não há voltas completadas gravadas pelo live.reader nesta sessão.")
         return
     order = [r["tla"] for r in timing_rows(state)[0]]
-    options = [d for d in order if d in set(laps["driver"])]
+    have = set(laps["driver"])
+    options = [d for d in order if d in have]
     picked = st.multiselect("Pilotos", options, default=options[:5], key=f"drivers_{session_dir.name}")
     st.plotly_chart(lap_times(laps, picked, team_colors(state)), width="stretch", config={"displaylogo": False})
 
@@ -223,7 +224,8 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
         st.caption("Previsões feitas ao vivo durante a corrida, volta a volta. Com pneu de chuva (começo e fim da corrida) "
                    "a rede está fora do que aprendeu, porque foi treinada sem corridas molhadas, e erra cerca de 10 s. "
                    f"Análise completa no [relatório da corrida]({RACE_REPORT}).")
-    options = [d for d in order if d in set(preds["driver"])]
+    have = set(preds["driver"])
+    options = [d for d in order if d in have]
     picked = st.multiselect("Pilotos (escolha dois para comparar)", options, default=options[:1], max_selections=2,
                             key=f"pred_{session_dir.name}")
     latest, anchors = [], {}

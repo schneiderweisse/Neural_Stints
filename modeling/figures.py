@@ -183,16 +183,43 @@ def stint_forecasts(laps: pd.DataFrame, preds: dict[str, pd.DataFrame], drivers:
                     lo, hi = min(lo, w["time_p10"].min()), max(hi, w["time_p90"].max())
                 fig.add_trace(go.Scatter(x=w["lap"], y=w["time_p50"], mode="lines", name=name, legendgroup=model,
                                          showlegend=first, line=dict(color=color, width=2, dash=dash),
-                                         hovertemplate=f"{name}: %{{y:.2f}} s<extra></extra>"), row=i, col=1)
+                                         hovertemplate=f"{name}: %{{y|{LAP_FORMAT}}}<extra></extra>"), row=i, col=1)
         fig.add_trace(go.Scatter(x=clean["lap"], y=clean["lap_time"], mode="markers", name="Real (volta limpa)",
                                  legendgroup="real", showlegend=i == 1,
                                  marker=dict(size=6, color=c["ink"], line=dict(width=1, color=c["surface"])),
-                                 hovertemplate="Real: %{y:.3f} s<extra></extra>"), row=i, col=1)
+                                 hovertemplate=f"Real: %{{y|{LAP_FORMAT}}}<extra></extra>"), row=i, col=1)
         add_pits_and_sc(fig, real, theme, row=i)
         pad = 0.25 * (hi - lo)
-        fig.update_yaxes(range=[lo - pad, hi + pad], title_text="tempo (s)", row=i, col=1)
+        fig.update_yaxes(range=[lo - pad, hi + pad], title_text="tempo", row=i, col=1)
     fig.update_xaxes(title_text="volta", row=len(drivers), col=1)
+    whole_laps(fig)
+    lap_time_axis(fig)
     return base_layout(fig, 290 * len(drivers) + 80, theme)
+
+
+LAP_FORMAT = "%-M:%S.%L"                                  # 1:14.430
+
+
+def lap_time_axis(fig: go.Figure) -> None:
+    """Eixo y em min:seg.mil. As curvas chegam em segundos e viram instantes de um dia qualquer, no eixo de data."""
+    def clock(seconds):
+        ms = (pd.to_numeric(pd.Series(seconds), errors="coerce") * 1000).round()
+        return pd.Timestamp("2000-01-01") + pd.to_timedelta(ms, unit="ms")
+
+    for trace in fig.data:
+        trace.y = clock(trace.y)
+
+    def to_clock(axis):
+        ends = None if axis.range is None or pd.isna(list(axis.range)).any() else [t.isoformat() for t in clock(axis.range)]
+        axis.update(type="date", tickformat=LAP_FORMAT, hoverformat=LAP_FORMAT, automargin=True, range=ends)
+    fig.for_each_yaxis(to_clock)
+
+
+def whole_laps(fig: go.Figure) -> None:
+    """Eixo x de voltas só com inteiros: uma marca por volta; os rótulos rareiam para não se sobrepor."""
+    laps = [x for trace in fig.data if trace.x is not None for x in trace.x]
+    span = max(laps) - min(laps) if laps else 0
+    fig.update_xaxes(tickmode="linear", tick0=0, dtick=1, ticklabelstep=1 if span <= 30 else 2 if span <= 60 else 5)
 
 
 def add_pits_and_sc(fig: go.Figure, real: pd.DataFrame, theme: str, row: int = 1) -> None:
@@ -225,18 +252,24 @@ def lap_times(laps: pd.DataFrame, drivers: list[str], team_colors: dict[str, str
         shown_teams.add(team)
         color = team_colors.get(drv, c["ink2"])
         fig.add_trace(go.Scatter(x=d["lap"], y=d["lap_time"], mode="lines", name=drv, line=dict(color=color, width=2, dash=dash),
-                                 hovertemplate=f"{drv}: %{{y:.3f}} s<extra></extra>"))
+                                 hovertemplate=f"{drv}: %{{y|{LAP_FORMAT}}}<extra></extra>"))
         for comp, dc in d.groupby("compound"):
             fig.add_trace(go.Scatter(x=dc["lap"], y=dc["lap_time"], mode="markers", name=COMPOUND_LETTER.get(comp, comp),
                                      legendgroup=f"comp_{comp}", showlegend=comp not in seen_compounds, hoverinfo="skip",
                                      marker=dict(size=8, color=compound_color(comp, theme), line=dict(width=1.5, color=c["surface"]))))
             seen_compounds.add(comp)
     fig.update_xaxes(title_text="volta")
-    fig.update_yaxes(title_text="tempo de volta (s)", range=[lo - 0.3, hi])
+    whole_laps(fig)
+    fig.update_yaxes(title_text="tempo de volta", range=[lo - 0.3, hi])
+    lap_time_axis(fig)
     return base_layout(fig, 400, theme)
 
 
 DRIVER_STYLE = [("#3987e5", "solid", "circle"), ("#199e70", "dash", "diamond")]   # validadas no fundo escuro
+
+
+def rgba(color: str, alpha: float) -> str:
+    return f"rgba({int(color[1:3], 16)},{int(color[3:5], 16)},{int(color[5:7], 16)},{alpha})"
 
 
 def driver_forecasts(series: list[dict], xtitle: str, theme: str = "dark") -> go.Figure:
@@ -255,47 +288,62 @@ def driver_forecasts(series: list[dict], xtitle: str, theme: str = "dark") -> go
         for k, (_, seg) in enumerate(df[df["p50"].notna()].groupby(seg_id)):
             fig.add_trace(go.Scatter(x=list(seg["x"]) + list(seg["x"])[::-1], y=list(seg["p90"]) + list(seg["p10"])[::-1],
                                      mode="lines", fill="toself",
-                                     fillcolor=f"rgba({int(color[1:3], 16)},{int(color[3:5], 16)},{int(color[5:7], 16)},0.16)",
+                                     fillcolor=rgba(color, 0.16),
                                      line=dict(width=0), hoverinfo="skip", legendgroup=s["label"], showlegend=False))
         fig.add_trace(go.Scatter(x=df["x"], y=df["p50"], mode="lines", name=f"{s['label']} · previsto (p50)",
                                  legendgroup=s["label"], line=dict(color=color, width=2, dash=dash),
-                                 customdata=df["hover"], hovertemplate="%{customdata}<br>previsto %{y:.3f} s<extra></extra>"))
+                                 customdata=df["hover"], hovertemplate=f"%{{customdata}}<br>previsto %{{y|{LAP_FORMAT}}}<extra></extra>"))
         fig.add_trace(go.Scatter(x=df["x"], y=df["real"], mode="markers", name=f"{s['label']} · real",
                                  legendgroup=s["label"], marker=dict(size=9, color=color, symbol=symbol,
                                                                      line=dict(width=1.5, color=c["ink"])),
-                                 hovertemplate="real %{y:.3f} s<extra></extra>"))
+                                 hovertemplate=f"real %{{y|{LAP_FORMAT}}}<extra></extra>"))
         lo += [df["p10"].min(), df["real"].min()]
         hi += [df["p90"].max(), df["real"].max()]
     lo, hi = pd.Series(lo).min(), pd.Series(hi).max()
     if pd.notna(lo) and pd.notna(hi):
         pad = 0.15 * (hi - lo) + 0.1
         fig.update_yaxes(range=[lo - pad, hi + pad])
-    fig.update_xaxes(title_text=xtitle, dtick=1 if len(series) and max(len(s["x"]) for s in series) <= 12 else None)
-    fig.update_yaxes(title_text="tempo de volta (s)")
+    fig.update_xaxes(title_text=xtitle)
+    whole_laps(fig)
+    fig.update_yaxes(title_text="tempo de volta")
+    lap_time_axis(fig)
     return base_layout(fig, 420, theme)
 
 
 def live_forecast(real: pd.DataFrame, pred: pd.DataFrame, title: str, theme: str = "dark") -> go.Figure:
-    """Voltas reais de um piloto e a previsão mais recente da GRU (mediana e faixa p10–p90)."""
+    """Voltas reais e a previsão mais recente da GRU (mediana e faixa p10–p90) de um piloto, ou de dois para comparar."""
     c = THEMES[theme]
     fig = go.Figure()
     clean = real[real["lap_time"].notna()].sort_values("lap")
-    if not pred.empty:
-        fig.add_trace(go.Scatter(x=list(pred["lap"]) + list(pred["lap"])[::-1],
-                                 y=list(pred["time_p90"]) + list(pred["time_p10"])[::-1], mode="lines", fill="toself",
-                                 fillcolor=c["band"], line=dict(width=0), hoverinfo="skip", name="GRU p10–p90"))
-        fig.add_trace(go.Scatter(x=pred["lap"], y=pred["time_p50"], mode="lines+markers", name="GRU v0 (mediana)",
-                                 line=dict(color=c["gru"], width=2), marker=dict(size=6, color=c["gru"]),
-                                 hovertemplate="previsto: %{y:.3f} s<extra></extra>"))
-        fig.add_vline(x=pred["t"].iloc[0] + 0.5, line=dict(color=c["muted"], width=1, dash="dot"))
-    fig.add_trace(go.Scatter(x=clean["lap"], y=clean["lap_time"], mode="markers", name="real",
-                             marker=dict(size=7, color=c["ink"], line=dict(width=1, color=c["surface"])),
-                             hovertemplate="real: %{y:.3f} s<extra></extra>"))
+    drivers = list(dict.fromkeys(real["driver"]))
+    compare = len(drivers) > 1
+    for i, drv in enumerate(drivers):
+        color, dash, symbol = DRIVER_STYLE[i] if compare else (c["gru"], "solid", "circle")
+        who = f"{drv} · " if compare else ""
+        p = pred[pred["driver"] == drv]
+        r = clean[clean["driver"] == drv]
+        if not p.empty:
+            fig.add_trace(go.Scatter(x=list(p["lap"]) + list(p["lap"])[::-1],
+                                     y=list(p["time_p90"]) + list(p["time_p10"])[::-1], mode="lines", fill="toself",
+                                     fillcolor=rgba(color, 0.16) if compare else c["band"], line=dict(width=0),
+                                     hoverinfo="skip", name="GRU p10–p90", legendgroup=who, showlegend=not compare))
+            fig.add_trace(go.Scatter(x=p["lap"], y=p["time_p50"], mode="lines+markers",
+                                     name=f"{who}GRU v0 (mediana)", legendgroup=who,
+                                     line=dict(color=color, width=2, dash=dash),
+                                     marker=dict(size=6, color=color, symbol=symbol),
+                                     hovertemplate=f"{who}previsto: %{{y|{LAP_FORMAT}}}<extra></extra>"))
+            fig.add_vline(x=p["t"].iloc[0] + 0.5, line=dict(color=c["muted"], width=1, dash="dot"))
+        marker = (dict(size=8, color=color, symbol=symbol, line=dict(width=1.5, color=c["ink"])) if compare
+                  else dict(size=7, color=c["ink"], line=dict(width=1, color=c["surface"])))
+        fig.add_trace(go.Scatter(x=r["lap"], y=r["lap_time"], mode="markers", name=f"{who}real", legendgroup=who,
+                                 marker=marker, hovertemplate=f"{who}real: %{{y|{LAP_FORMAT}}}<extra></extra>"))
     if len(clean):
         lo = min(clean["lap_time"].quantile(0.02), pred["time_p10"].min() if len(pred) else 1e9)
         hi = max(clean["lap_time"].median() * 1.05, pred["time_p90"].max() if len(pred) else 0)
         fig.update_yaxes(range=[lo - 0.3, hi + 0.3])
     fig.update_layout(title=dict(text=title, font=dict(color=c["ink"], size=14), x=0, xanchor="left"))
     fig.update_xaxes(title_text="volta")
-    fig.update_yaxes(title_text="tempo de volta (s)")
+    whole_laps(fig)
+    fig.update_yaxes(title_text="tempo de volta")
+    lap_time_axis(fig)
     return base_layout(fig, 380, theme, top=96)

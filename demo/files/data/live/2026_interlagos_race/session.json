@@ -1,0 +1,31 @@
+{
+ "ArchiveStatus": {
+  "Status": "Generating"
+ },
+ "EndDate": "2026-11-08T16:00:00",
+ "GmtOffset": "-03:00:00",
+ "Key": 11412,
+ "Meeting": {
+  "Circuit": {
+   "Key": 14,
+   "ShortName": "Interlagos"
+  },
+  "Country": {
+   "Code": "BRA",
+   "Key": 10,
+   "Name": "Brazil"
+  },
+  "Key": 1299,
+  "Location": "São Paulo",
+  "Name": "São Paulo Grand Prix",
+  "Number": 20,
+  "OfficialName": "FORMULA 1 MSC CRUISES GRANDE PRÊMIO DE SÃO PAULO 2026"
+ },
+ "Name": "Race",
+ "Path": "2026/2026-11-08_São_Paulo_Grand_Prix/2026-11-08_Race/",
+ "SessionStatus": "Started",
+ "StartDate": "2026-11-08T14:00:00",
+ "Type": "Race",
+ "_kf": true,
+ "TotalLaps": 71
+}

@@ -5,9 +5,11 @@ import pandas as pd
 import streamlit as st
 
 from dashboard import data
-from live.feed import DEFAULT_URL, STALE_AFTER, heartbeat_age
+from live.feed import DEFAULT_URL, STALE_AFTER, heartbeat_age, heartbeat_time
 from live.laps import as_list, session_key, sub
 from modeling.figures import COMPOUND_LETTER, compound_color, lap_times, live_forecast
+
+RACE_REPORT = "https://github.com/schneiderweisse/Neural_Stints/blob/main/docs/race_reports/2026_sao_paulo.md"
 
 TRACK_STATUS = {"1": ("Pista verde", "#3fb950"), "2": ("Bandeira amarela", "#d29922"), "3": ("", "#7d8590"),
                 "4": ("Safety car", "#d29922"), "5": ("Bandeira vermelha", "#f85149"), "6": ("VSC", "#d29922"),
@@ -191,7 +193,9 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
 
     laps = data.read_parquet_fresh(session_dir / "laps.parquet") if session_dir else None
     if laps is not None and clock is not None:
-        laps = laps[laps["clock"] <= clock]
+        # lidas ao vivo, as voltas guardam o horário real; refeitas da gravação, o tempo desde o início dela
+        live_clock = laps["clock"].max() > 1e8
+        laps = laps[laps["clock"] <= (heartbeat_time(state) or float("inf") if live_clock else clock)]
     st.subheader("Tempos de volta")
     if laps is None or laps.empty:
         st.caption("Ainda não há voltas completadas gravadas pelo live.reader nesta sessão.")
@@ -215,12 +219,27 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
         run = str(preds["gru_run"].iloc[-1])
         ens = data.run_files(run)["config"].get("ensemble") if (data.RUNS / run / "config.json").exists() else None
         st.caption(f"Modelo `{run}`" + (f": média dos quantis de {len(ens['members'])} sementes." if ens else "."))
-    drv = st.selectbox("Piloto", [d for d in order if d in set(preds["driver"])], key=f"pred_{session_dir.name}")
-    current = int(laps.loc[laps["driver"] == drv, "lap"].max()) if (laps["driver"] == drv).any() else 0
-    p = preds[(preds["driver"] == drv) & (preds["t"] <= current)]
-    latest = p[p["t"] == p["t"].max()].sort_values("h") if len(p) else p
-    title = f"{drv}: previsão feita ao fim da volta {int(latest['t'].iloc[0])}" if len(latest) else drv
-    st.plotly_chart(live_forecast(laps[laps["driver"] == drv], latest, title), width="stretch", config={"displaylogo": False})
+    if demo:
+        st.caption("Previsões feitas ao vivo durante a corrida, volta a volta. Com pneu de chuva (começo e fim da corrida) "
+                   "a rede está fora do que aprendeu, porque foi treinada sem corridas molhadas, e erra cerca de 10 s. "
+                   f"Análise completa no [relatório da corrida]({RACE_REPORT}).")
+    options = [d for d in order if d in set(preds["driver"])]
+    picked = st.multiselect("Pilotos (escolha dois para comparar)", options, default=options[:1], max_selections=2,
+                            key=f"pred_{session_dir.name}")
+    latest, anchors = [], {}
+    for drv in picked:
+        current = int(laps.loc[laps["driver"] == drv, "lap"].max()) if (laps["driver"] == drv).any() else 0
+        p = preds[(preds["driver"] == drv) & (preds["t"] <= current)]
+        if len(p):
+            latest.append(p[p["t"] == p["t"].max()].sort_values("h"))
+            anchors[drv] = int(p["t"].max())
+    if picked:
+        if len(picked) == 1:
+            title = f"{picked[0]}: previsão feita ao fim da volta {anchors[picked[0]]}" if anchors else picked[0]
+        else:
+            title = "Previsão feita ao fim da volta: " + " · ".join(f"{d} {t}" for d, t in anchors.items())
+        chart = live_forecast(laps[laps["driver"].isin(picked)], pd.concat(latest) if latest else preds.iloc[:0], title)
+        st.plotly_chart(chart, width="stretch", config={"displaylogo": False})
     # só as voltas previstas que já foram disputadas até este momento (na gravação, o resto é "futuro")
     done = preds[preds["time_real"].notna() & preds["clean"]].merge(laps[["driver", "lap"]], on=["driver", "lap"])
     if len(done):
@@ -241,7 +260,7 @@ def render(demo: bool = False) -> None:
         source = c1.radio("Fonte", ["f1-dash ao vivo", "Sessão gravada"], horizontal=True, key="live_source")
     if source == "f1-dash ao vivo":
         url = c2.text_input("Endereço do f1-dash", DEFAULT_URL, key="live_url")
-        interval = c3.slider("Atualizar a cada (s)", 2, 15, 3, key="live_every")
+        interval = c3.slider("Atualizar a cada (s)", 1, 15, 1, key="live_every")   # cada atualização leva ~70 ms
 
         @st.fragment(run_every=interval)
         def live_view():
@@ -260,7 +279,8 @@ def render(demo: bool = False) -> None:
     if not recs:
         st.info("Nenhuma sessão gravada em data/live ainda.")
         return
-    rec = c2.selectbox("Gravação", recs, format_func=lambda p: f"{p.parent.name} · {p.name}", key="rec_path")
+    rec = c2.selectbox("Gravação", recs, key="rec_path",
+                       format_func=lambda p: p.parent.name if p.name == data.REPLAY_FILE else f"{p.parent.name} · {p.name}")
     snaps = data.recording_snapshots(str(rec))
     if "rec_idx" not in st.session_state or st.session_state.get("rec_for") != str(rec):
         st.session_state.rec_idx, st.session_state.rec_for = len(snaps) // 2, str(rec)

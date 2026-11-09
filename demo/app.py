@@ -26,12 +26,14 @@ layout.inject_css()
 # marca em texto no lugar do logo da F1, que é marca registrada; o logo da UnB vai junto (assets/)
 layout.header(layout.F1_MARK, layout.logo("unb_logo", 44, "Universidade de Brasília", HERE / "assets"))
 st.markdown(f"<div class='demo-note'>Demonstração do painel, rodando inteiramente no navegador. "
-            "Aqui estão a reprodução de uma corrida gravada (GP da Alemanha de 2019) e o ajuste da rede nas corridas "
-            "de validação e teste de 2026. O painel completo também acompanha as sessões ao vivo, com as previsões da "
-            f"GRU a cada volta. Código e documentação: <a href='{REPO}'>github.com/schneiderweisse/Neural_Stints</a>."
+            "Aqui estão a reprodução do GP de São Paulo de 2026, com as previsões que a GRU fez ao vivo a cada volta, e do "
+            "GP da Alemanha de 2019, além do ajuste da rede nas corridas de validação e teste de 2026. O painel completo "
+            "também acompanha as sessões ao vivo. Relatório da corrida: "
+            f"<a href='{live_tab.RACE_REPORT}'>GP de São Paulo</a>. "
+            f"Código e documentação: <a href='{REPO}'>github.com/schneiderweisse/Neural_Stints</a>."
             "</div>", unsafe_allow_html=True)
 
-replay, gru, tasks = st.tabs(["Reprodução 2019", "GRU v0", "Tarefas A e B"])
+replay, gru, tasks = st.tabs(["Corridas gravadas", "GRU v0", "Tarefas A e B"])
 with replay:
     live_tab.render(demo=True)
 with gru:

@@ -25,8 +25,9 @@ REPLAY_FILE = "replay.json.gz"   # estados a cada 30 s de uma gravação, feito 
 
 
 def recordings() -> list[Path]:
-    """Gravações em data/live; na demo, que não leva o fluxo bruto, as reproduções já calculadas (replay.json.gz)."""
-    return sorted(LIVE.glob("*/recording*.jsonl")) or sorted(LIVE.glob(f"*/{REPLAY_FILE}"))
+    """Gravações em data/live, da mais recente para a mais antiga; na demo, que não leva o fluxo bruto, as
+    reproduções já calculadas (replay.json.gz)."""
+    return sorted(LIVE.glob("*/recording*.jsonl"), reverse=True) or sorted(LIVE.glob(f"*/{REPLAY_FILE}"), reverse=True)
 
 
 @st.cache_resource(show_spinner="Reproduzindo a gravação…")

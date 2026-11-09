@@ -18,7 +18,9 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_URL = "http://localhost:4000/api/current"
+# 127.0.0.1 e não localhost: o f1-dash só escuta em IPv4, e no Windows cada conexão a "localhost" tenta antes
+# o IPv6 (::1) e leva ~2 s para desistir (medido: 2.050 ms contra 10 ms por leitura)
+DEFAULT_URL = "http://127.0.0.1:4000/api/current"
 
 
 def merge(base, update):
@@ -46,20 +48,25 @@ def merge(base, update):
 STALE_AFTER = 90.0   # s; a F1 manda um Heartbeat a cada ~15 s enquanto o feed está vivo
 
 
+def heartbeat_time(state: dict | None) -> float | None:
+    """Horário do último Heartbeat da F1 no estado, em segundos desde 1970 (None se não houver)."""
+    utc = ((state or {}).get("Heartbeat") or {}).get("Utc")
+    if not utc:
+        return None
+    try:
+        return datetime.fromisoformat(str(utc)[:26].rstrip("Z") + "+00:00").timestamp()
+    except ValueError:
+        return None
+
+
 def heartbeat_age(state: dict | None) -> float | None:
     """Segundos desde o último Heartbeat da F1 no estado (None se não houver).
 
     Com o f1-dash desconectado da F1 (ou o notebook acordando de uma suspensão), o estado fica parado
     e esta idade cresce; acima de STALE_AFTER, os dados não estão mais chegando.
     """
-    utc = ((state or {}).get("Heartbeat") or {}).get("Utc")
-    if not utc:
-        return None
-    try:
-        then = datetime.fromisoformat(str(utc)[:26].rstrip("Z") + "+00:00")
-    except ValueError:
-        return None
-    return (datetime.now(timezone.utc) - then).total_seconds()
+    then = heartbeat_time(state)
+    return None if then is None else datetime.now(timezone.utc).timestamp() - then
 
 
 class HttpSource:

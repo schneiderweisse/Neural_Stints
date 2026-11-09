@@ -31,7 +31,7 @@ from live.power import keep_awake
 
 ROOT = Path(__file__).resolve().parents[1]
 LIVE = ROOT / "data" / "live"
-DEFAULT_URL = "http://localhost:4000/api/realtime"
+DEFAULT_URL = "http://127.0.0.1:4000/api/realtime"   # 127.0.0.1: ver live/feed.py
 
 
 def sse_events(url: str, timeout: float = 60.0):

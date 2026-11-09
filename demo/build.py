@@ -7,8 +7,9 @@ Dois passos:
 
 `export` precisa dos dados do projeto, que ficam fora do git (runs/, data/processed, data/live), e por
 isso roda na máquina de quem treinou. Ele copia o run da GRU e o do ingênuo mostrados na demo, as
-voltas das corridas de validação e teste e calcula a reprodução da corrida de 2019 a cada 30 s, só com
-o que o painel usa (`replay.json.gz`, no lugar do fluxo bruto de 21 MB).
+voltas das corridas de validação e teste e calcula a reprodução das corridas gravadas a cada 30 s, só
+com o que o painel usa (`replay.json.gz`, no lugar do fluxo bruto). Quando a gravação tem previsões
+feitas ao vivo, elas vão junto.
 
 `site` só usa a biblioteca padrão: junta o index.html e um app.zip com o código das abas
 (dashboard/, live/feed.py, live/laps.py, modeling/figures.py), a entrada da demo (demo/app.py) e
@@ -29,13 +30,14 @@ CODE = ["dashboard/__init__.py", "dashboard/data.py", "dashboard/layout.py", "da
         "dashboard/model_tab.py", "dashboard/tasks_tab.py", "live/__init__.py", "live/feed.py", "live/laps.py",
         "modeling/__init__.py", "modeling/figures.py"]
 RUN_FILES = ["config.json", "metrics.json", "history.csv", "predictions.parquet"]
-REPLAY_SESSION = "2019_hockenheim_race"
+REPLAY_SESSIONS = ["2026_interlagos_race", "2019_hockenheim_race"]
+PREDICTION_COLUMNS = ["driver", "t", "h", "lap", "time_p10", "time_p50", "time_p90", "time_real", "clean", "gru_run"]
 REPLAY_EVERY = 30.0
 RACE_LAPS_COLUMNS = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "pit_out", "neutralised",
                      "position", "compound", "stint", "tyre_life", "fresh_tyre"]
 
 # o que a aba Ao Vivo lê de cada estado (dashboard/live_tab.py); o resto do feed fica de fora
-STATE_KEYS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "WeatherData", "ExtrapolatedClock",
+STATE_KEYS = ["SessionInfo", "SessionStatus", "TrackStatus", "LapCount", "WeatherData", "ExtrapolatedClock", "Heartbeat",
               "DriverList", "TimingData", "TimingAppData"]
 LINE_KEYS = ["Line", "Position", "BestLapTime", "LastLapTime", "GapToLeader", "IntervalToPositionAhead",
              "TimeDiffToFastest", "TimeDiffToPositionAhead", "Sectors", "NumberOfLaps", "NumberOfPitStops", "Retired",
@@ -102,17 +104,20 @@ def export(gru: Path | None, naive: Path | None) -> None:
     laps.to_parquet(out, index=False)
     print(f"race_laps: {len(laps):,} voltas de {laps['race_label'].nunique()} corridas · {out.stat().st_size / 1e6:.1f} MB")
 
-    src, dest = ROOT / "data" / "live" / REPLAY_SESSION, FILES / "data" / "live" / REPLAY_SESSION
-    dest.mkdir(parents=True)
-    for name in ("session.json", "laps.parquet"):
-        shutil.copy2(src / name, dest / name)
-    # o ReplaySource altera o mesmo estado a cada mensagem: cada momento precisa de uma cópia própria
-    snaps = [[clock, slim_state(json.loads(json.dumps(state)))]
-             for clock, state in ReplaySource(str(src / "recording.jsonl"), interval=REPLAY_EVERY)]
-    with gzip.open(dest / "replay.json.gz", "wt", encoding="utf-8", compresslevel=9) as f:
-        json.dump(snaps, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"reprodução {REPLAY_SESSION}: {len(snaps)} estados ({snaps[-1][0] / 60:.0f} min) · "
-          f"{(dest / 'replay.json.gz').stat().st_size / 1e6:.1f} MB")
+    for session in REPLAY_SESSIONS:
+        src, dest = ROOT / "data" / "live" / session, FILES / "data" / "live" / session
+        dest.mkdir(parents=True)
+        for name in ("session.json", "laps.parquet"):
+            shutil.copy2(src / name, dest / name)
+        if (src / "predictions.parquet").exists():
+            pd.read_parquet(src / "predictions.parquet", columns=PREDICTION_COLUMNS).to_parquet(dest / "predictions.parquet", index=False)
+        # o ReplaySource altera o mesmo estado a cada mensagem: cada momento precisa de uma cópia própria
+        snaps = [[clock, slim_state(json.loads(json.dumps(state)))]
+                 for clock, state in ReplaySource(str(src / "recording.jsonl"), interval=REPLAY_EVERY)]
+        with gzip.open(dest / "replay.json.gz", "wt", encoding="utf-8", compresslevel=9) as f:
+            json.dump(snaps, f, ensure_ascii=False, separators=(",", ":"))
+        print(f"reprodução {session}: {len(snaps)} estados ({snaps[-1][0] / 60:.0f} min) · "
+              f"{(dest / 'replay.json.gz').stat().st_size / 1e6:.1f} MB")
 
     assets = FILES / "assets"
     assets.mkdir()

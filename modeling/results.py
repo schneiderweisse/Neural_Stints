@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,11 +41,23 @@ def finish_predictions(frame: pd.DataFrame, run_id: str, model: str) -> pd.DataF
     return p[COLUMNS]
 
 
-def write_atomic(path: Path, write) -> None:
-    """Grava num arquivo temporário e renomeia, para ninguém ler o arquivo pela metade."""
+def write_atomic(path: Path, write, retries: int = 50) -> None:
+    """Grava num arquivo temporário e renomeia, para ninguém ler o arquivo pela metade.
+
+    No Windows, a troca falha (PermissionError) enquanto outro processo está com o arquivo aberto, por
+    exemplo o painel lendo laps.parquet ou o antivírus inspecionando o arquivo novo; tenta de novo por
+    até ~5 s antes de desistir.
+    """
     tmp = path.with_name(path.name + ".tmp")
     write(tmp)
-    os.replace(tmp, path)
+    for attempt in range(retries):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == retries - 1:
+                raise
+            time.sleep(0.1)
 
 
 def write_run(run_id: str, config: dict, predictions: pd.DataFrame, metrics: dict,

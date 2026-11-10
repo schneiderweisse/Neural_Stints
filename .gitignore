@@ -4,6 +4,9 @@
 /data/processed/
 /data/live/
 
+# Telemetria do TracingInsights (~19 GB): junção para C:\NeuralStintsData\telemetry, fora do OneDrive
+/telemetry
+
 # Plano e cronograma do projeto: ficam só na máquina local
 /docs/plano_projeto_rn2.pdf
 /docs/make_plan_pdf.py

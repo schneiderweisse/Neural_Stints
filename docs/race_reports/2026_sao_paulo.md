@@ -231,6 +231,16 @@ A outra é usar esse modelo como conferência da rede: se a GRU projeta 0,84 s d
 - **Recalibrar a faixa.** Testar intervalos conformais adaptativos, que alargam quando a cobertura recente cai. Testar também em validação e teste, pelo que aconteceu com a correção da mediana.
 - **Tratar leituras impossíveis do feed.** O feed marcou pista a 0,0 °C às 14:25, e esse valor entrou como variável em 15 registros, nas voltas 15 e 16.
 
+## Conferência com os dados oficiais
+
+Os dados oficiais da corrida saíram no TracingInsights dois dias depois (10/11). As voltas gravadas ao vivo pelo leitor batem com eles:
+
+- as 1.435 voltas dos 21 pilotos estão nas duas fontes, sem nenhuma a mais ou a menos;
+- os tempos de volta e os três setores são iguais ao milésimo nas 1.414 voltas que têm tempo nas duas fontes; as outras 21 são a primeira volta, que o feed ao vivo não cronometra;
+- as entradas e saídas dos boxes e as posições concordam em 100% das voltas, o composto em 99,9% e o stint em 99,5%.
+
+Com os tempos e a máscara de voltas limpas oficiais, as métricas da rede quase não mudam: MAE de 1,110 s (1,115 s com o feed gravado), viés de +0,436 s e cobertura de 49,9%. Os números deste relatório valem para os dois.
+
 ## Limites deste relatório
 
 - É uma corrida só, com condições raras. Os números não generalizam, e o conjunto de teste continua sendo a medida do modelo em pista seca.

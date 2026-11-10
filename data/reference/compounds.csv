@@ -1,15 +1,116 @@
-year,circuit,hard,medium,soft,source
-2025,Melbourne,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-australian-grand.6BHZAGXShd5oMNiVGtcofW
-2025,Monte Carlo,C4,C5,C6,https://press.pirelli.com/from-monaco-to-montreal-all-the-compounds-in-play/
-2025,Catalunya,C1,C2,C3,https://press.pirelli.com/from-monaco-to-montreal-all-the-compounds-in-play/
-2025,Hungaroring,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-hungarian-grand-prix.FZNZbRnpwYyLoRBrpOSwL
-2025,Monza,C3,C4,C5,https://press.pirelli.com/changes-and-status-quo-when-it-comes-to-compound-choices-for-the-rest-of-the-season0/
-2025,Singapore,C3,C4,C5,https://press.pirelli.com/changes-and-status-quo-when-it-comes-to-compound-choices-for-the-rest-of-the-season0/
-2025,Austin,C1,C3,C4,https://www.formula1.com/en/latest/article/pirelli-boss-isola-explains-jump-in-compounds-for-austin-and-mexico-city.6Vg3wKuNRHscMiwkH2Yqcw
-2026,Melbourne,C3,C4,C5,https://www.formula1.com/en/latest/article/pirelli-confirm-2026-tyre-compounds-as-f1-gets-set-for-a-new-era-of.6la0zKVsCYwWk9AAISz4Yw
-2026,Monte Carlo,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-monaco-grand-prix.6RNlF5Skp9niWsEz6urQMr
-2026,Catalunya,C2,C3,C4,https://press.pirelli.com/the-tyre-compound-selections-for-monte-carlo-and-barcelona/
-2026,Hungaroring,C3,C4,C5,https://www.mercedesamgf1.com/news/what-are-the-tyre-options-for-the-2026-hungarian-gp
-2026,Monza,C3,C4,C5,https://en.wikipedia.org/wiki/2026_Italian_Grand_Prix
-2026,Singapore,C3,C4,C5,https://www.mercedesamgf1.com/news/what-are-the-tyre-options-for-the-2026-singapore-gp
-2026,Austin,C2,C3,C4,https://press.pirelli.com/the-compound-selection-for-austin-mexico-city-and-so-paulo/
+year,event,circuit,hard,medium,soft,source,note
+2022,Bahrain Grand Prix,Sakhir,C1,C2,C3,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Saudi Arabian Grand Prix,Jeddah,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Australian Grand Prix,Melbourne,C2,C3,C5,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,pulo de composto (sem o C4)
+2022,Emilia Romagna Grand Prix,Imola,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Miami Grand Prix,Miami,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Spanish Grand Prix,Catalunya,C1,C2,C3,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Monaco Grand Prix,Monte Carlo,C3,C4,C5,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Azerbaijan Grand Prix,Baku,C3,C4,C5,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Canadian Grand Prix,Montreal,C3,C4,C5,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,British Grand Prix,Silverstone,C1,C2,C3,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Austrian Grand Prix,Spielberg,C3,C4,C5,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,French Grand Prix,Le Castellet,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Hungarian Grand Prix,Hungaroring,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Belgian Grand Prix,Spa-Francorchamps,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Dutch Grand Prix,Zandvoort,C1,C2,C3,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Italian Grand Prix,Monza,C2,C3,C4,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Singapore Grand Prix,Singapore,C3,C4,C5,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,Japanese Grand Prix,Suzuka,C1,C2,C3,https://racingnews365.com/pirelli-confirm-tyre-choices-for-return-of-singapore-and-japan,
+2022,United States Grand Prix,Austin,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2022-united-states-grand.4BgVW4AMaHNwmv0qCaK0rx,
+2022,Mexico City Grand Prix,Mexico City,C2,C3,C4,https://pitpass.com/73301/Pirelli-reveals-tyre-compounds-for-next-three-races,
+2022,São Paulo Grand Prix,Interlagos,C2,C3,C4,https://racingnews365.com/pirelli-reveal-tyre-choices-for-brazil-and-abu-dhabi-grands-prix,
+2022,Abu Dhabi Grand Prix,Yas Marina Circuit,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2022-abu-dhabi-grand-prix.6JdtRjYzOPcs0ztbRgQ6h,
+2023,Bahrain Grand Prix,Sakhir,C1,C2,C3,https://www.formula1.com/en/latest/article/pirelli-confirm-tyre-choices-for-first-three-f1-races-of-2023-as-new.1xlpcTVaLqw0NeM3aYoyCt,
+2023,Saudi Arabian Grand Prix,Jeddah,C2,C3,C4,https://www.formula1.com/en/latest/article/pirelli-confirm-tyre-choices-for-first-three-f1-races-of-2023-as-new.1xlpcTVaLqw0NeM3aYoyCt,
+2023,Australian Grand Prix,Melbourne,C2,C3,C4,https://www.formula1.com/en/latest/article/pirelli-confirm-tyre-choices-for-first-three-f1-races-of-2023-as-new.1xlpcTVaLqw0NeM3aYoyCt,
+2023,Azerbaijan Grand Prix,Baku,C3,C4,C5,https://press.pirelli.com/2023-tyre-compound-choices--azerbaijan-usa-and-italy/,
+2023,Miami Grand Prix,Miami,C2,C3,C4,https://press.pirelli.com/2023-tyre-compound-choices--azerbaijan-usa-and-italy/,
+2023,Monaco Grand Prix,Monte Carlo,C3,C4,C5,https://press.pirelli.com/2023-tyre-compound-choices--monaco-and-spain/,
+2023,Spanish Grand Prix,Catalunya,C1,C2,C3,https://press.pirelli.com/2023-tyre-compound-choices--monaco-and-spain/,
+2023,Canadian Grand Prix,Montreal,C3,C4,C5,https://press.pirelli.com/2023-tyre-compound-choices--canada-austria-and-great-britain/,
+2023,Austrian Grand Prix,Spielberg,C3,C4,C5,https://press.pirelli.com/2023-tyre-compound-choices--canada-austria-and-great-britain/,
+2023,British Grand Prix,Silverstone,C1,C2,C3,https://press.pirelli.com/2023-tyre-compound-choices--canada-austria-and-great-britain/,
+2023,Hungarian Grand Prix,Hungaroring,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2023-hungarian-grand-prix.4hNRA4AFjDT1PtiDn56imH,
+2023,Belgian Grand Prix,Spa-Francorchamps,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2023-belgian-grand-prix.40NGZ2lPr20TxJY12eRHPo,
+2023,Dutch Grand Prix,Zandvoort,C1,C2,C3,https://f1technical.net/news/24147,
+2023,Italian Grand Prix,Monza,C3,C4,C5,https://f1technical.net/news/24147,
+2023,Singapore Grand Prix,Singapore,C3,C4,C5,https://press.pirelli.com/unchanged-nominations-for-singapore-japan-and-qatar--in-name-at-least/,
+2023,Japanese Grand Prix,Suzuka,C1,C2,C3,https://press.pirelli.com/unchanged-nominations-for-singapore-japan-and-qatar--in-name-at-least/,
+2023,Qatar Grand Prix,Lusail,C1,C2,C3,https://press.pirelli.com/unchanged-nominations-for-singapore-japan-and-qatar--in-name-at-least/,
+2023,United States Grand Prix,Austin,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2023-united-states-grand.24UsOsaCszDcdoTFNZVcIl,
+2023,Mexico City Grand Prix,Mexico City,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2023-mexico-city-grand.MAS6QQvlCln4LZmnPQRr9,
+2023,São Paulo Grand Prix,Interlagos,C2,C3,C4,https://new.pitpass.com/76265/Pirelli-confirms-compounds-for-COTA-Mexico-City-and-Brazil,
+2023,Las Vegas Grand Prix,Las Vegas,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2023-las-vegas-grand-prix.4D4UZXYbPpq1naoP1QiUpa,
+2023,Abu Dhabi Grand Prix,Yas Marina Circuit,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2023-abu-dhabi-grand-prix.64CNIc1wzgQmwUqJCWG1Q0,
+2024,Bahrain Grand Prix,Sakhir,C1,C2,C3,https://press.pirelli.com/pirelli-nominates-the-compounds-for-the-start-of-2024/,
+2024,Saudi Arabian Grand Prix,Jeddah,C2,C3,C4,https://press.pirelli.com/pirelli-nominates-the-compounds-for-the-start-of-2024/,
+2024,Australian Grand Prix,Melbourne,C3,C4,C5,https://press.pirelli.com/pirelli-nominates-the-compounds-for-the-start-of-2024/,
+2024,Japanese Grand Prix,Suzuka,C1,C2,C3,https://f1grandprix.motorionline.com/en/formula-1-pirelli-scelte-le-mescole-per-suzuka-cina-e-miami/,
+2024,Chinese Grand Prix,Shanghai,C2,C3,C4,https://f1grandprix.motorionline.com/en/formula-1-pirelli-scelte-le-mescole-per-suzuka-cina-e-miami/,
+2024,Miami Grand Prix,Miami,C2,C3,C4,https://f1grandprix.motorionline.com/en/formula-1-pirelli-scelte-le-mescole-per-suzuka-cina-e-miami/,
+2024,Emilia Romagna Grand Prix,Imola,C3,C4,C5,https://tyrepress.com/2024/04/pirelli-sticks-with-softest-f1-tyre-compound-trio-for-three-more-grands-prix,
+2024,Monaco Grand Prix,Monte Carlo,C3,C4,C5,https://tyrepress.com/2024/04/pirelli-sticks-with-softest-f1-tyre-compound-trio-for-three-more-grands-prix,
+2024,Canadian Grand Prix,Montreal,C3,C4,C5,https://tyrepress.com/2024/04/pirelli-sticks-with-softest-f1-tyre-compound-trio-for-three-more-grands-prix,
+2024,Spanish Grand Prix,Catalunya,C1,C2,C3,https://f1technical.net/news/24701,
+2024,Austrian Grand Prix,Spielberg,C3,C4,C5,https://f1technical.net/news/24701,
+2024,British Grand Prix,Silverstone,C1,C2,C3,https://f1technical.net/news/24701,
+2024,Hungarian Grand Prix,Hungaroring,C3,C4,C5,https://press.pirelli.com/all-compounds-on-track-over-next-three-races/,
+2024,Belgian Grand Prix,Spa-Francorchamps,C2,C3,C4,https://press.pirelli.com/all-compounds-on-track-over-next-three-races/,
+2024,Dutch Grand Prix,Zandvoort,C1,C2,C3,https://press.pirelli.com/all-compounds-on-track-over-next-three-races/,
+2024,Italian Grand Prix,Monza,C3,C4,C5,https://tyrepress.com/2024/07/soft-september-pirelli-confirms-formula-1-compounds-for-monza-baku-and-singapore,
+2024,Azerbaijan Grand Prix,Baku,C3,C4,C5,https://tyrepress.com/2024/07/soft-september-pirelli-confirms-formula-1-compounds-for-monza-baku-and-singapore,
+2024,Singapore Grand Prix,Singapore,C3,C4,C5,https://tyrepress.com/2024/07/soft-september-pirelli-confirms-formula-1-compounds-for-monza-baku-and-singapore,
+2024,United States Grand Prix,Austin,C2,C3,C4,https://f1technical.net/news/25555,
+2024,Mexico City Grand Prix,Mexico City,C3,C4,C5,https://f1technical.net/news/25555,
+2024,São Paulo Grand Prix,Interlagos,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2024-sao-paulo-grand-prix.6vKgx4XLiN5It5wtiYXqsL,
+2024,Las Vegas Grand Prix,Las Vegas,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2024-las-vegas-grand-prix.ufsYJ5HkKWCc65K1yWydN,
+2024,Qatar Grand Prix,Lusail,C1,C2,C3,https://f1technical.net/news/25745,
+2024,Abu Dhabi Grand Prix,Yas Marina Circuit,C3,C4,C5,https://f1technical.net/news/25745,
+2025,Australian Grand Prix,Melbourne,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-australian-grand.6BHZAGXShd5oMNiVGtcofW,
+2025,Chinese Grand Prix,Shanghai,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-saudi-arabian-grand.51lzVd1cvHKJoZ7S6VLGQr,mesma escolha de 2024 (as quatro primeiras corridas repetiram 2024)
+2025,Japanese Grand Prix,Suzuka,C1,C2,C3,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-bahrain-grand-prix.7gnHbNpm0OJQIjPqsWoyof,
+2025,Bahrain Grand Prix,Sakhir,C1,C2,C3,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-bahrain-grand-prix.7gnHbNpm0OJQIjPqsWoyof,
+2025,Saudi Arabian Grand Prix,Jeddah,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-saudi-arabian-grand.51lzVd1cvHKJoZ7S6VLGQr,
+2025,Miami Grand Prix,Miami,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-miami-grand-prix.1PVJRhU0GRuJZ7yvWOzq5V,
+2025,Emilia Romagna Grand Prix,Imola,C4,C5,C6,https://press.pirelli.com/the-c6-to-make-its-debut-in-imola/,
+2025,Monaco Grand Prix,Monte Carlo,C4,C5,C6,https://press.pirelli.com/from-monaco-to-montreal-all-the-compounds-in-play/,
+2025,Spanish Grand Prix,Catalunya,C1,C2,C3,https://press.pirelli.com/from-monaco-to-montreal-all-the-compounds-in-play/,
+2025,Canadian Grand Prix,Montreal,C4,C5,C6,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-canadian-grand-prix.6f3pKs15OHHlxe7uI544kO,
+2025,Austrian Grand Prix,Spielberg,C3,C4,C5,https://f1i.com/news/540217-spa-experiment-pirelli-opts-for-compound-gap-to-boost-drama.html,
+2025,British Grand Prix,Silverstone,C2,C3,C4,https://f1i.com/news/540217-spa-experiment-pirelli-opts-for-compound-gap-to-boost-drama.html,
+2025,Belgian Grand Prix,Spa-Francorchamps,C1,C3,C4,https://f1i.com/news/540217-spa-experiment-pirelli-opts-for-compound-gap-to-boost-drama.html,pulo de composto (sem o C2)
+2025,Hungarian Grand Prix,Hungaroring,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-hungarian-grand-prix.FZNZbRnpwYyLoRBrpOSwL,
+2025,Dutch Grand Prix,Zandvoort,C2,C3,C4,https://www.pitpass.com/80783/Pirelli-reveals-compounds-for-remaining-races,
+2025,Italian Grand Prix,Monza,C3,C4,C5,https://press.pirelli.com/changes-and-status-quo-when-it-comes-to-compound-choices-for-the-rest-of-the-season0/,
+2025,Azerbaijan Grand Prix,Baku,C4,C5,C6,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-azerbaijan-grand.137gQOhmf7W3otBHh8YmlE,
+2025,Singapore Grand Prix,Singapore,C3,C4,C5,https://press.pirelli.com/changes-and-status-quo-when-it-comes-to-compound-choices-for-the-rest-of-the-season0/,
+2025,United States Grand Prix,Austin,C1,C3,C4,https://www.formula1.com/en/latest/article/pirelli-boss-isola-explains-jump-in-compounds-for-austin-and-mexico-city.6Vg3wKuNRHscMiwkH2Yqcw,pulo de composto (sem o C2)
+2025,Mexico City Grand Prix,Mexico City,C2,C4,C5,https://www.pitpass.com/80783/Pirelli-reveals-compounds-for-remaining-races,pulo de composto (sem o C3)
+2025,São Paulo Grand Prix,Interlagos,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2025-sao-paulo-grand-prix.GZPklEOlKlVoyqxAR8yNH,
+2025,Las Vegas Grand Prix,Las Vegas,C3,C4,C5,https://www.pitpass.com/80783/Pirelli-reveals-compounds-for-remaining-races,
+2025,Qatar Grand Prix,Lusail,C1,C2,C3,https://www.pitpass.com/80783/Pirelli-reveals-compounds-for-remaining-races,
+2025,Abu Dhabi Grand Prix,Yas Marina Circuit,C3,C4,C5,https://www.pitpass.com/80783/Pirelli-reveals-compounds-for-remaining-races,
+2026,Australian Grand Prix,Melbourne,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-australian-grand.4Uli9fb5X7hNAhkxzikv5B,
+2026,Chinese Grand Prix,Shanghai,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-chinese-grand-prix.3XkKc3AWcBACR36IhWpKOS,
+2026,Japanese Grand Prix,Suzuka,C1,C2,C3,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-japanese-grand-prix.4V0p1BrC3PbEiWNzsivaSr,
+2026,Miami Grand Prix,Miami,C3,C4,C5,https://racingnews365.com/pirelli-confirm-key-choice-for-upcoming-f1-races,
+2026,Canadian Grand Prix,Montreal,C3,C4,C5,https://racingnews365.com/pirelli-confirm-key-choice-for-upcoming-f1-races,
+2026,Monaco Grand Prix,Monte Carlo,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-monaco-grand-prix.6RNlF5Skp9niWsEz6urQMr,
+2026,Barcelona Grand Prix,Catalunya,C2,C3,C4,https://press.pirelli.com/the-tyre-compound-selections-for-monte-carlo-and-barcelona/,
+2026,Austrian Grand Prix,Spielberg,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-austrian-grand-prix.2bhUStvp9xxGLpN2gvTeib,
+2026,British Grand Prix,Silverstone,C1,C2,C3,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-british-grand-prix.3qD9d5o8X4x3se0F7Zg5i1,
+2026,Belgian Grand Prix,Spa-Francorchamps,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-belgian-grand-prix.5RaQVyMqM9Fl5ON3xTcVO0,
+2026,Hungarian Grand Prix,Hungaroring,C3,C4,C5,https://www.mercedesamgf1.com/news/what-are-the-tyre-options-for-the-2026-hungarian-gp,
+2026,Dutch Grand Prix,Zandvoort,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-dutch-grand-prix.402ufleb78rXrqaispof9U,
+2026,Italian Grand Prix,Monza,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-italian-grand-prix.7nOpWdCgvCBFDGlnODs0gk,
+2026,Spanish Grand Prix,Madring,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-spanish-grand-prix.2vlcVOBnZUFRCooVcqWG7n,
+2026,Azerbaijan Grand Prix,Baku,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-azerbaijan-grand-prix.1UFiasleBnLs9s0hyRCpS0,
+2026,Bahrain Grand Prix,Kuala Lumpur,C2,C3,C4,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-bahrain-grand-prix-in-malaysia.4vcrMxYY9DWg7PwyiNMrEV,corrida transferida para Kuala Lumpur
+2026,Singapore Grand Prix,Singapore,C3,C4,C5,https://www.mercedesamgf1.com/news/what-are-the-tyre-options-for-the-2026-singapore-gp,
+2026,United States Grand Prix,Austin,C2,C3,C4,https://press.pirelli.com/the-compound-selection-for-austin-mexico-city-and-so-paulo/,
+2026,Mexico City Grand Prix,Mexico City,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-mexico-city-grand-prix.3a3o08HqrmdQ9IqXYUwJrH,
+2026,Abu Dhabi Grand Prix,Yas Marina Circuit,,,,,ainda não anunciado em 10/11/2026
+2026,Las Vegas Grand Prix,Las Vegas,,,,,ainda não anunciado em 10/11/2026
+2026,Qatar Grand Prix,Lusail,,,,,ainda não anunciado em 10/11/2026
+2026,São Paulo Grand Prix,Interlagos,C3,C4,C5,https://www.formula1.com/en/latest/article/what-tyres-will-the-teams-and-drivers-have-for-the-2026-sao-paulo-grand-prix.bjn9KJgqDprqvVr9z7i5V,

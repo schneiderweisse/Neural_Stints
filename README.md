@@ -130,7 +130,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
 
-*Atualizado em 8 de novembro de 2026.*
+*Atualizado em 10 de novembro de 2026.*
 
 ### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
 
@@ -155,7 +155,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 | Data | Atividade | Status |
 |---|---|---|
-| 9 – 15/11 | Compostos C1–C6 por GP; modelo linear misto e LightGBM; LSTM × GRU; previsão quantílica; experimento das eras de regulamento; avaliação da v0 em Interlagos | ⏳ |
+| 9 – 15/11 | Compostos C1–C6 por GP (feito em 10/11); modelo linear misto e LightGBM; LSTM × GRU; previsão quantílica (pronta desde a v0); experimento das eras de regulamento; avaliação da v0 em Interlagos (feita, com a conferência contra os dados oficiais) | 🔄 |
 | 16 – 19/11 | Congelar a v1; painel com o simulador de estratégia; ensaio por replay da gravação de Interlagos | ⏳ |
 | Qui 19/11 | Ensaio no TL1 de Las Vegas (21h30) | ⏳ |
 | Sex 20/11 | Ensaios no TL2 (01h00) e TL3 (21h30) | ⏳ |

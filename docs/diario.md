@@ -2,6 +2,27 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 10 de novembro de 2026
+
+### Compostos C1–C6 por GP
+
+- **Tabela completa:** `data/reference/compounds.csv` passou de 14 para 115 corridas, todas as de 2022 a 2026, com a fonte de cada linha. As fontes são 62 páginas: comunicados da Pirelli, as páginas "What tyres will the teams and drivers have" da F1 e imprensa especializada que reproduz o comunicado.
+  - **Conferência:** as linhas de 2025 e 2026 e uma amostra das outras foram conferidas no texto da própria página, e não só no resumo da busca.
+  - **Erro evitado:** a busca dizia C2–C4 para Silverstone 2026, mas a página da F1 diz C1–C3.
+  - **Pendentes:** Las Vegas, Catar e Abu Dhabi de 2026 ficam em branco até a Pirelli anunciar. Las Vegas precisa entrar antes do teste ao vivo.
+- **Pulos de composto:** a coluna `note` marca as nominações não consecutivas (Austrália 2022: C2, C3 e C5; Spa e Austin 2025: C1, C3 e C4; Cidade do México 2025: C2, C4 e C5).
+- **Especificação por temporada:** `data/reference/tyre_specs.csv` traz a faixa de cada ano, de C1–C5 em 2022 a C1–C6 em 2025 e C1–C5 em 2026, com os pneus novos. A numeração muda de sentido: em 2023 o antigo C1 virou C0, e entrou um C1 novo entre ele e o C2. Por isso a dureza só se compara dentro de uma temporada.
+- **Pipeline:** `pipeline/race_laps.py` ganhou `add_compounds`, com a dureza nominal da volta (`compound_c`) e a nominação do fim de semana (`c_hard`, `c_medium`, `c_soft`). O caminho ao vivo (`live/history.py`) usa a mesma função.
+  - **Cobertura:** 100% das voltas em pneu liso de 2022 a 2026.
+  - **Paridade:** a conferência treino × ao vivo continua em 100%.
+  - **Rede:** a dureza ainda não entra nela. Isso fica para os próximos treinos (LSTM × GRU e as eras), porque mudar as variáveis agora quebraria o ensemble da v0.
+
+### Interlagos contra os dados oficiais
+
+- **TracingInsights atualizado:** 2026 agora tem 20 GPs, até São Paulo, com 23.473 voltas de corrida com tempo. A corrida de São Paulo entrou na tabela como corrida molhada, então fica fora das sequências.
+- **As voltas gravadas ao vivo batem com as oficiais:** as 1.435 voltas estão nas duas fontes, e tempos e setores são iguais ao milésimo nas 1.414 voltas que têm tempo nas duas. As outras 21 são a primeira volta, sem tempo no feed. Paradas e posições concordam em 100%, o composto em 99,9% e o stint em 99,5%.
+- **Métricas com os tempos oficiais:** MAE de 1,110 s, contra 1,115 s com o feed gravado. O [relatório da corrida](race_reports/2026_sao_paulo.md) ganhou essa conferência.
+
 ## 9 de novembro de 2026
 
 ### Demo mais rápida

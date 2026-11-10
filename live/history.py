@@ -150,6 +150,7 @@ def race_features(live: pd.DataFrame, ref: pd.DataFrame, year: int, event: str, 
     race = rl.add_reference(race, ref)
     race = rl.add_flags(race)
     race = rl.add_features(race)
+    race = rl.add_compounds(race)
     # progresso pela distância anunciada no feed (a corrida ainda não acabou)
     total = race["laps_announced"].fillna(race["laps_total"]).astype(float)
     race["laps_total"] = total

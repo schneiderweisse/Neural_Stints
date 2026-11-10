@@ -8,7 +8,8 @@ data/
     tracinginsights/<ano>/   sparse clone do TracingInsights, 2022 a 2026 (~230 MB)
     openf1/                  cópia parcial do OpenF1, 2023 a 2026 (~140 MB)
   reference/
-    compounds.csv            compostos nominados (C1–C6) por GP, com a fonte de cada linha
+    compounds.csv            compostos nominados (C0–C6) por GP, 2022–2026, com a fonte de cada linha
+    tyre_specs.csv           faixa de compostos de cada temporada e o que mudou nela
     circuits.csv             circuito de cada GP, 2022–2026
   interim/, processed/       tabelas intermediárias e finais geradas pelo pipeline
   live/                      gravações das sessões ao vivo (.jsonl)
@@ -27,7 +28,7 @@ Um repositório git por temporada (`github.com/TracingInsights/<ano>`), clonado 
 
 O significado de cada campo está em `raw/tracinginsights/<ano>/DATA_REFERENCE.md` (nos anos em que o arquivo existe; o formato é o mesmo em todas as temporadas). Licença: Apache-2.0.
 
-Cobertura em 2 de novembro de 2026:
+Cobertura em 10 de novembro de 2026:
 
 | Temporada | GPs | Voltas de corrida com tempo |
 |---|---|---|
@@ -35,7 +36,7 @@ Cobertura em 2 de novembro de 2026:
 | 2023 | 22 | 24.386 |
 | 2024 | 24 | 26.574 |
 | 2025 | 24 | 26.657 |
-| 2026 | 19 (até o México) | 21.997 |
+| 2026 | 20 (até São Paulo) | 23.473 |
 
 Os nomes das pastas de sessão variam entre temporadas. Em 2023, a quali da sprint se chama `Sprint Shootout`; nos outros anos, `Sprint Qualifying`. Em 2022, a pasta `Sprint Qualifying` é uma cópia da corrida sprint (os `laptimes.json` são idênticos aos de `Sprint`). O módulo `pipeline/sessions.py` padroniza os nomes, descarta a cópia de 2022 e é a forma de percorrer as sessões no pipeline (`iter_sessions`).
 
@@ -58,7 +59,7 @@ Geradas pelo pipeline, nesta ordem, a partir da pasta `Neural_Stints`:
 | Arquivo | Conteúdo |
 |---|---|
 | `interim/laps.parquet` | Uma linha por volta de todas as sessões (~304 mil voltas), com nomes de coluna legíveis, `race_id` (`<ano>_<rodada>`) e a data da sessão |
-| `processed/race_laps.parquet` | Voltas de corrida (~123 mil) com circuito, referência do piloto no fim de semana, alvo `pace`, flags de limpeza e variáveis por volta |
+| `processed/race_laps.parquet` | Voltas de corrida (~125 mil) com circuito, referência do piloto no fim de semana, alvo `pace`, flags de limpeza, variáveis por volta e a dureza nominal do composto (`compound_c`, C1–C6) com a nominação do fim de semana (`c_hard`, `c_medium`, `c_soft`) |
 | `processed/dataset.npz` | Matrizes normalizadas por volta, variáveis estáticas por sequência (piloto-corrida) e o índice das janelas encoder/decoder |
 | `processed/dataset_meta.json` | Nomes das variáveis, vocabulários, médias e desvios do treino e a divisão das corridas |
 
@@ -68,7 +69,7 @@ Decisões principais:
 - **Circuitos, não GPs:** as corridas são identificadas pelo circuito (`reference/circuits.csv`), porque o nome do GP muda entre anos. Em 2026, o GP da Espanha foi em Madri (Madring) e o GP do Bahrein, em Kuala Lumpur; o circuito de Barcelona passou a sediar o "GP de Barcelona". O rótulo de cada corrida é `<ano> <circuito>` (coluna `race_label`) e `reference/compounds.csv` também usa o circuito como chave.
 - **Voltas limpas (`clean`):** com tempo, fora da volta 1, sem entrada ou saída dos boxes, sem SC/VSC/bandeira vermelha, não deletada nem gerada pelo FastF1, em pneu de pista seca e até 107% da mediana limpa do piloto na corrida. Só elas entram na perda e nas métricas; as outras continuam na sequência como entrada.
 - **Voltas limpas ao vivo (`clean_live`):** como a mediana da corrida inteira não existe durante a corrida, as entradas da rede e os baselines usam uma versão calculável ao vivo: os mesmos critérios, com o corte de 107% sobre a mediana das voltas *anteriores* do piloto e um teto de ritmo de 30% acima da referência (para o começo da corrida, quando ainda não há voltas anteriores; voltas de relargada depois de bandeira vermelha chegam ao dobro do tempo normal). As duas versões concordam em 99,9% das voltas das corridas secas.
-- **Corridas molhadas** (mais de 10% das voltas com pneu intermediário ou de chuva) ficam fora das sequências: 13 das 111.
+- **Corridas molhadas** (mais de 10% das voltas com pneu intermediário ou de chuva) ficam fora das sequências: 14 das 112 (a 14ª é o GP de São Paulo de 2026).
 - **Divisão por corrida e em ordem cronológica:** as 3 últimas corridas secas são o teste (Singapura, Austin e México 2026), as 4 anteriores a validação (Zandvoort, Monza, Madring e Baku 2026) e todo o resto, de 2022 até a Hungria 2026, o treino. A validação escolhe a época do treino; o teste só é usado para medir o resultado. Normalização e vocabulários são ajustados só no treino; valores não vistos (um circuito novo, por exemplo) viram `<unk>`.
 - **Janela:** ao fim da volta *t*, o encoder lê as voltas 1..*t* e o decoder prevê as voltas *t*+1..*t*+10, recebendo só as variáveis conhecidas no futuro (pneu, composto, paradas, progresso da corrida).
 ## OpenF1 (`raw/openf1/`)
@@ -79,4 +80,6 @@ Para atualizar, rode `node raw/openf1/download_openf1.js` (Node 18+). Esse scrip
 
 ## Referência (`reference/`)
 
-`circuits.csv` liga cada GP (ano e nome do evento) ao circuito, de 2022 até o fim de 2026. `compounds.csv` traz os compostos nominados (hard, medium, soft → C1–C6) por ano e circuito, com a fonte. Hoje cobre só os 7 circuitos do estudo de regulamento 2025 × 2026 (14 eventos) e será completada para 2022–2026.
+`circuits.csv` liga cada GP (ano e nome do evento) ao circuito, de 2022 até o fim de 2026. `compounds.csv` traz os compostos que a Pirelli nominou como hard, medium e soft em cada GP de 2022 a 2026 (115 corridas), por ano e circuito, com a fonte de cada linha: comunicados da Pirelli e as páginas "What tyres will the teams and drivers have" da F1, com algumas linhas de imprensa especializada que reproduz o comunicado. A coluna `note` marca as nominações com pulo de composto (Austrália 2022; Spa, Austin e Cidade do México 2025). Las Vegas, Catar e Abu Dhabi de 2026 ficam em branco até a Pirelli anunciar; Las Vegas precisa ser preenchida antes do teste ao vivo.
+
+`tyre_specs.csv` registra a faixa de cada temporada: C1–C5 em 2022, C0–C5 em 2023, C1–C5 em 2024, C1–C6 em 2025 e C1–C5 em 2026, com os pneus novos. A numeração não tem o mesmo sentido em todos os anos. Em 2023 entrou um C1 novo, entre o C2 e o antigo C1, que passou a se chamar C0. Por isso a dureza `compound_c` só se compara dentro de uma temporada; entre temporadas, o ano e o regulamento entram junto na rede.

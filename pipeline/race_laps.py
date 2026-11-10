@@ -8,7 +8,8 @@ uma linha por (corrida, piloto, volta), com:
   sem vazar informação do futuro;
 - alvo: pace = tempo de volta / referência − 1 (ritmo relativo);
 - flags de limpeza e a máscara `clean`, que define em quais voltas a perda é calculada;
-- variáveis por volta: setores relativos, speed traps relativos, gaps, pneu, clima e progresso.
+- variáveis por volta: setores relativos, speed traps relativos, gaps, pneu, clima e progresso;
+- dureza nominal do composto (C1–C6) e a nominação do fim de semana, de reference/compounds.csv.
 
 Toda variável de entrada usa só informação disponível até a volta corrente (é calculável ao vivo).
 As exceções são `outlier` e `clean`, que usam a mediana da corrida inteira e por isso entram apenas
@@ -25,6 +26,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 LAPS = ROOT / "data" / "interim" / "laps.parquet"
 CIRCUITS = ROOT / "data" / "reference" / "circuits.csv"
+COMPOUNDS = ROOT / "data" / "reference" / "compounds.csv"
 OUT = ROOT / "data" / "processed" / "race_laps.parquet"
 
 DRY = ["SOFT", "MEDIUM", "HARD"]
@@ -109,6 +111,28 @@ def add_flags(race: pd.DataFrame) -> pd.DataFrame:
     return race
 
 
+def add_compounds(race: pd.DataFrame, compounds: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Dureza nominal do composto de cada volta e a nominação do fim de semana (reference/compounds.csv).
+
+    `compound_c` é o número do composto da volta (C1 = 1 … C6 = 6), vazio em pneu de chuva e em GP
+    sem nominação conhecida. `c_hard`, `c_medium` e `c_soft` descrevem a nominação inteira do fim de
+    semana. A numeração muda de sentido entre temporadas (o C1 de 2023 é um composto novo, e o C1 de
+    2022 virou C0), por isso a dureza só se compara dentro de um ano; ver reference/tyre_specs.csv.
+    """
+    if compounds is None:
+        compounds = pd.read_csv(COMPOUNDS)
+    nominated = compounds[["year", "circuit"]].copy()
+    for k in ("hard", "medium", "soft"):
+        nominated[f"c_{k}"] = pd.to_numeric(compounds[k].str[1:], errors="coerce").astype("Int8")
+    race = race.drop(columns=[c for c in ("c_hard", "c_medium", "c_soft", "compound_c") if c in race])
+    race = race.merge(nominated, on=["year", "circuit"], how="left")
+    race["compound_c"] = pd.Series(pd.NA, index=race.index, dtype="Int8")
+    for compound, col in (("HARD", "c_hard"), ("MEDIUM", "c_medium"), ("SOFT", "c_soft")):
+        rows = race["compound"] == compound
+        race.loc[rows, "compound_c"] = race.loc[rows, col]
+    return race
+
+
 def add_gaps(race: pd.DataFrame) -> pd.DataFrame:
     """Gap ao carro da frente e ao líder na linha de chegada de cada volta.
 
@@ -177,11 +201,15 @@ def main() -> None:
     race = add_flags(race)
     race = add_gaps(race)
     race = add_features(race)
+    race = add_compounds(race)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     race.to_parquet(OUT, index=False)
     n_races = race["race_id"].nunique()
     dry = race[~race["race_wet"]]
+    missing = race.loc[race["dry_tyre"] & race["compound_c"].isna(), "race_label"].unique()
+    print(f"voltas em pneu liso com dureza C conhecida: {race.loc[race['dry_tyre'], 'compound_c'].notna().mean():.1%}"
+          + (f" (sem nominação: {', '.join(missing)})" if len(missing) else ""))
     print(f"{len(race):,} voltas de corrida, {n_races} corridas ({race.loc[race['race_wet'], 'race_id'].nunique()} molhadas)"
           f" -> {OUT.relative_to(ROOT)}")
     print(f"voltas limpas em corridas secas: {dry['clean'].sum():,} de {len(dry):,} ({dry['clean'].mean():.1%})")

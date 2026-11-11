@@ -72,6 +72,25 @@ Decisões principais:
 - **Corridas molhadas** (mais de 10% das voltas com pneu intermediário ou de chuva) ficam fora das sequências: 14 das 112 (a 14ª é o GP de São Paulo de 2026).
 - **Divisão por corrida e em ordem cronológica:** as 3 últimas corridas secas são o teste (Singapura, Austin e México 2026), as 4 anteriores a validação (Zandvoort, Monza, Madring e Baku 2026) e todo o resto, de 2022 até a Hungria 2026, o treino. A validação escolhe a época do treino; o teste só é usado para medir o resultado. Normalização e vocabulários são ajustados só no treino; valores não vistos (um circuito novo, por exemplo) viram `<unk>`.
 - **Janela:** ao fim da volta *t*, o encoder lê as voltas 1..*t* e o decoder prevê as voltas *t*+1..*t*+10, recebendo só as variáveis conhecidas no futuro (pneu, composto, paradas, progresso da corrida).
+## Telemetria (`telemetry/`, na raiz do repositório)
+
+A telemetria volta a volta das corridas e sprints de 2022 a 2026 fica fora de `data/` e fora do git. Ela não chega no feed ao vivo, então só serve para modelos avaliados fora do ao vivo. Numa máquina com o projeto dentro do OneDrive, `telemetry/` (e também `data/raw/` e `.venv/`) pode ser uma junção para uma pasta fora dele, para os ~19 GB não serem sincronizados.
+
+```bash
+py pipeline/fetch_telemetry.py                        # telemetry/tracinginsights/<ano>/ (~19 GB de JSON, 135 mil voltas)
+.venv/Scripts/python -m pipeline.telemetry_compact    # telemetry/compact/ (~2,5 GB, ~2 min com 14 processos)
+```
+
+| Arquivo | Conteúdo |
+|---|---|
+| `tracinginsights/<ano>/<GP>/<Race\|Sprint>/<piloto>/<volta>_tel.json` | Telemetria original, ~7,5 amostras por segundo: velocidade, rpm, marcha, acelerador, freio, DRS, distância, posição x/y/z (em décimos de metro, apesar do DATA_REFERENCE dizer metros), acelerações e carro da frente |
+| `compact/index.parquet` | Uma linha por volta: `row` (posição nos arrays), `race_id` (o mesmo de `race_laps.parquet`), sessão (R ou S), piloto, volta e medidas de qualidade da volta original |
+| `compact/tel_f16.npy` | (voltas, 512, 10) em float16: velocidade, rpm, marcha, acelerador, freio, DRS, acc_x, acc_y, acc_z e distância ao carro da frente |
+| `compact/tel_f32.npy` | (voltas, 512, 4) em float32: tempo desde o início da volta, x, y e z |
+| `compact/meta.json` | Canais, unidades, grade e o commit do TracingInsights de cada ano |
+
+Cada volta é reamostrada em 512 pontos igualmente espaçados na distância da própria volta (~10 m num circuito de 5 km), então o ponto *k* é o mesmo trecho da pista em todas as voltas de um circuito. Os arrays abrem com `np.load(..., mmap_mode="r")`. Conferência em 11/11/2026: todas as 99.315 voltas limpas de corrida têm telemetria, e a duração da telemetria bate com o tempo oficial da volta (diferença mediana de 0,000 s). A pasta `compact/parts/` é um cache por sessão: depois de atualizar a telemetria, a conversão refaz só as sessões que mudaram.
+
 ## OpenF1 (`raw/openf1/`)
 
 Cópia da pasta `OpenF1` coletada antes do projeto (dados até o GP dos EUA de 2026), só com os endpoints úteis aqui: `meeting`, `sessions`, `drivers`, `laps`, `stints`, `pit` e `race_control`. Serve para checagem cruzada e para estimar o tempo perdido no pit lane (`pit.json`). Licença: CC BY-NC-SA 4.0.

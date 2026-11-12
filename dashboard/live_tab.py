@@ -1,5 +1,6 @@
 """Aba Ao Vivo: a sessão atual (f1-dash) ou uma sessão gravada."""
 import html
+import time
 
 import pandas as pd
 import streamlit as st
@@ -20,6 +21,9 @@ YELLOW, PIT, EMPTY = "#d29922", "#2f81f7", "#30363d"
 SEGMENT_COLOR = {2048: YELLOW, 2052: YELLOW, 2049: GREEN, 2051: PURPLE, 2064: PIT}
 SEGMENT_LEGEND = [(YELLOW, "mais lento que o melhor pessoal"), (GREEN, "melhor pessoal"), (PURPLE, "melhor da sessão"),
                   (PIT, "pit lane"), (EMPTY, "ainda não passou")]
+# troca de posição: a linha fica em destaque no lugar antigo e depois desliza para o novo (CSS em layout.py)
+SWAP_SECONDS = 1.6     # duração da transição; a linha mantém a marcação até ela terminar
+REPLAY_MAX_STEP = 61   # na gravação, só anima entre momentos vizinhos (a 30 s); um salto do controle não anima
 
 
 def timing_color(item) -> str:
@@ -81,7 +85,7 @@ def timing_rows(state: dict) -> tuple[list[dict], bool]:
         else:
             status = ""
         rows.append({
-            "line": int(ln.get("Line") or drv.get("Line") or 99), "pos": ln.get("Position", ""),
+            "num": str(num), "line": int(ln.get("Line") or drv.get("Line") or 99), "pos": ln.get("Position", ""),
             "tla": drv.get("Tla", num), "team": drv.get("TeamName", ""), "color": f"#{drv.get('TeamColour', '7d8590')}",
             "best": sub(ln, "BestLapTime", "Value") or "", "last": ln.get("LastLapTime") or {},
             "gap": (ln.get("GapToLeader") if race else ln.get("TimeDiffToFastest")) or "",
@@ -93,8 +97,35 @@ def timing_rows(state: dict) -> tuple[list[dict], bool]:
     return sorted(rows, key=lambda r: r["line"]), race
 
 
-def timing_table(state: dict) -> str:
+def position_moves(rows: list[dict], key: str, stamp: float | None) -> dict[str, tuple[int, str]]:
+    """Pilotos que trocaram de posição desde a atualização anterior desta tela: {número: (posições, fase)}.
+
+    A ordem anterior fica no session_state, por tela. `posições` é positivo para quem subiu. Uma troca
+    continua marcada por SWAP_SECONDS, com a mesma fase, para a transição não ser cortada pela próxima
+    atualização (ao vivo, a cada 1 s); uma nova troca do mesmo piloto troca a fase ("a"/"b"), o que
+    reinicia a animação no navegador. Na gravação (`stamp` = relógio da gravação), um salto maior que
+    REPLAY_MAX_STEP limpa tudo: o usuário arrastou o momento, e não há troca a mostrar.
+    """
+    order = [r["num"] for r in rows]
+    now = time.monotonic()
+    prev = st.session_state.get(key) or {}
+    active = {n: m for n, m in (prev.get("active") or {}).items() if now - m[2] < SWAP_SECONDS}
+    jumped = stamp is not None and prev.get("stamp") is not None and abs(stamp - prev["stamp"]) > REPLAY_MAX_STEP
+    if jumped or not prev.get("order"):
+        active = {}
+    else:
+        old = {n: i for i, n in enumerate(prev["order"])}
+        for i, n in enumerate(order):
+            if n in old and old[n] != i:
+                phase = "b" if active.get(n, (0, "b"))[1] == "a" else "a"
+                active[n] = (old[n] - i, phase, now)
+    st.session_state[key] = {"order": order, "stamp": stamp, "active": active}
+    return {n: (m[0], m[1]) for n, m in active.items()}
+
+
+def timing_table(state: dict, moves: dict[str, tuple[int, str]] | None = None) -> str:
     rows, race = timing_rows(state)
+    moves = moves or {}
     head = ["Pos", "Piloto", "Melhor volta", "Gap" if race else "Dif. melhor", "Intervalo" if race else "Dif. à frente",
             "Última volta", "S1", "S2", "S3", "Pneu", "Voltas", "Paradas", ""]
     out = ["<div class='timing-wrap'><table class='timing'><thead><tr>" + "".join(f"<th>{h}</th>" for h in head) +
@@ -109,8 +140,15 @@ def timing_table(state: dict) -> str:
         last = r["last"] if isinstance(r["last"], dict) else {}
         sectors = list(r["sectors"]) + [{}] * (3 - len(r["sectors"]))
         status = f"<span class='badge'>{r['status']}</span>" if r["status"] else ""
+        tr, pos = "<tr>", cell(r["pos"])
+        if r["num"] in moves:
+            delta, phase = moves[r["num"]]
+            # --d: de quantas linhas a linha parte (positivo = vem de baixo, porque subiu)
+            tr = f"<tr class='mv-{phase} {'gain' if delta > 0 else 'loss'}' style='--d:{delta}'>"
+            pos = (f"<td class='mono'>{html.escape(str(r['pos']))}"
+                   f"<span class='mv-tag'>{'▲' if delta > 0 else '▼'}{abs(delta)}</span></td>")
         out.append(
-            "<tr>" + cell(r["pos"]) +
+            tr + pos +
             f"<td><span class='dot' style='background:{r['color']}'></span><b>{html.escape(r['tla'])}</b>"
             f"<span class='team'>{html.escape(r['team'])}</span></td>" +
             cell(r["best"]) + cell(r["gap"]) + cell(r["interval"]) +
@@ -189,7 +227,9 @@ def team_colors(state: dict) -> dict[str, str]:
 def render_body(state: dict, session_dir, clock: float | None, clock_label: str = "", mode: str = "live",
                 demo: bool = False) -> None:
     st.markdown(session_header(state, clock_label, mode), unsafe_allow_html=True)
-    st.markdown(timing_table(state), unsafe_allow_html=True)
+    rows, _ = timing_rows(state)
+    moves = position_moves(rows, f"order_{mode == 'live'}_{session_dir.name if session_dir else 'live'}", clock)
+    st.markdown(timing_table(state, moves), unsafe_allow_html=True)
 
     laps = data.read_parquet_fresh(session_dir / "laps.parquet") if session_dir else None
     if laps is not None and clock is not None:

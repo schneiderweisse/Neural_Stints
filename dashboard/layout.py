@@ -37,6 +37,36 @@ table.timing .tyre {display: inline-block; border: 2px solid; border-radius: 50%
 table.timing .badge {border: 1px solid #30363d; border-radius: 2em; padding: 0 8px; font-size: 11px; color: #d29922;}
 .timing-wrap {overflow-x: auto;}
 table.timing td.sector {min-width: 78px; padding-top: 4px;}
+/* troca de posição: a linha ganha destaque no lugar antigo (--d linhas abaixo ou acima), desliza até o
+   lugar novo e o destaque se apaga. Duas fases iguais (a/b) para a animação recomeçar numa nova troca. */
+table.timing tr.gain {--hl: rgba(63,185,80,.30); --edge: #3fb950;}
+table.timing tr.loss {--hl: rgba(248,81,73,.26); --edge: #f85149;}
+table.timing tr.mv-a > td, table.timing tr.mv-b > td {position: relative; z-index: 2;
+    animation-duration: 1.5s; animation-timing-function: ease-in-out; animation-fill-mode: both;}
+table.timing tr.mv-a > td {animation-name: swap-a;}
+table.timing tr.mv-b > td {animation-name: swap-b;}
+table.timing tr.loss > td {z-index: 1;}
+@keyframes swap-a {
+  0% {transform: translateY(calc(var(--d) * 100%)); background: transparent; box-shadow: none;}
+  18%, 38% {transform: translateY(calc(var(--d) * 100%)); background: var(--hl); box-shadow: inset 0 1px 0 var(--edge), inset 0 -1px 0 var(--edge);}
+  78% {transform: translateY(0); background: var(--hl); box-shadow: inset 0 1px 0 var(--edge), inset 0 -1px 0 var(--edge);}
+  100% {transform: translateY(0); background: transparent; box-shadow: none;}
+}
+@keyframes swap-b {
+  0% {transform: translateY(calc(var(--d) * 100%)); background: transparent; box-shadow: none;}
+  18%, 38% {transform: translateY(calc(var(--d) * 100%)); background: var(--hl); box-shadow: inset 0 1px 0 var(--edge), inset 0 -1px 0 var(--edge);}
+  78% {transform: translateY(0); background: var(--hl); box-shadow: inset 0 1px 0 var(--edge), inset 0 -1px 0 var(--edge);}
+  100% {transform: translateY(0); background: transparent; box-shadow: none;}
+}
+table.timing .mv-tag {margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--edge);
+    animation: 1.5s ease-in-out both;}
+table.timing tr.mv-a .mv-tag {animation-name: tag-a;}
+table.timing tr.mv-b .mv-tag {animation-name: tag-b;}
+@keyframes tag-a {0% {opacity: 0;} 18%, 78% {opacity: 1;} 100% {opacity: 0;}}
+@keyframes tag-b {0% {opacity: 0;} 18%, 78% {opacity: 1;} 100% {opacity: 0;}}
+@media (prefers-reduced-motion: reduce) {
+  table.timing tr.mv-a > td, table.timing tr.mv-b > td {animation: none; background: var(--hl);}
+}
 .minis {display: flex; gap: 2px; margin-bottom: 3px;}
 .minis i {display: block; width: 8px; height: 4px; border-radius: 2px;}
 .minis-legend {display: flex; flex-wrap: wrap; gap: 4px 14px; color: #7d8590; font-size: 12px; margin: 6px 0 2px 0;}

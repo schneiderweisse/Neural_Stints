@@ -2,6 +2,20 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 12 de novembro de 2026
+
+### Transição de troca de posição na cronometragem
+
+- **Ideia do Eduardo,** vendo a reprodução de Interlagos na demo. Quando um piloto ganha ou perde posição, a linha dele primeiro ganha destaque ainda no lugar antigo, verde para quem subiu e vermelho para quem desceu. Depois ela desliza até o lugar novo e o destaque se apaga. Uma seta (▲2, ▼1) aparece ao lado da posição durante a transição.
+- **Como funciona:** só com CSS, sem script, porque o Streamlit não roda JavaScript dentro do markdown.
+  - O painel guarda a ordem anterior de cada tela no `session_state` (`live_tab.position_moves`).
+  - Cada linha que mudou recebe uma classe e o deslocamento em linhas (`--d`). A animação parte desse deslocamento e volta a zero.
+  - **Duas fases iguais:** as classes `mv-a` e `mv-b` reiniciam a animação quando o mesmo piloto troca de novo.
+  - **Marcação mantida por 1,6 s:** a próxima atualização (ao vivo, a cada 1 s) não corta a transição, porque o navegador reaproveita a tabela e a animação continua.
+  - **Saltos não animam:** na gravação, só momentos vizinhos (até 61 s de distância) são comparados. Um salto do controle de tempo não anima nada.
+  - **Movimento reduzido:** quem prefere menos animação vê só o destaque.
+- **Testado** na reprodução de São Paulo, no painel completo e na demo (stlite). As trocas observadas foram até o fim sem reiniciar no meio, e um retrato congelado no meio da transição mostra as linhas destacadas ainda no lugar antigo.
+
 ## 10 de novembro de 2026
 
 ### Compostos C1–C6 por GP

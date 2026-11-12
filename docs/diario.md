@@ -26,6 +26,12 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
   - a lista dos que já estão a menos de 1 s.
   - **Cada cartão** traz o gap, o ritmo das 3 últimas voltas de cada um, o gráfico do gap projetado com a faixa e a janela, e a volta prevista com a chance. Avisa quando a projeção não vale: pneu de chuva, box ou falta de previsão.
   - **Na gravação,** o cartão mostra também o que aconteceu depois: ✔ quando a disputa começou dentro da janela, ✘ quando veio fora dela ou não veio, ou o motivo de a conta ter parado.
+- **Leitura do gráfico, ajustada a pedido do Eduardo:**
+  - uma legenda única acima dos cartões explica cada elemento e os dois eixos;
+  - o eixo horizontal traz o número de cada volta, com a volta da previsão em destaque;
+  - além da linha tracejada laranja de 1 s (começa a disputa), há uma verde em 0 s, a ultrapassagem: abaixo dela, o carro de trás passou à frente;
+  - o gap real segue depois do início da disputa, em vez de parar nele, então dá para ver quando ele cruza o zero;
+  - o resultado agora diz também a volta da ultrapassagem ("A disputa começou na volta 44, dentro da janela · ultrapassagem na volta 45").
 - **Testado:**
   - na reprodução de São Paulo, no painel completo e na demo;
   - o tempo de cada atualização fora do navegador ficou entre 0,16 e 0,24 s;

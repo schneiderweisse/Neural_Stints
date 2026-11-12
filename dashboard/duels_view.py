@@ -24,6 +24,7 @@ WET = {"INTERMEDIATE", "WET"}
 DEMO_PAIRS = ["NOR × VER"]         # o estudo de caso do relatório de São Paulo
 Z80 = 1.2816                      # meia largura da faixa de 80% em desvios-padrão
 INK, MUTED, GRID, BAND, LINE, HIT, MISS = "#e6edf3", "#7d8590", "#30363d", "rgba(57,135,229,.22)", "#3987e5", "#3fb950", "#f85149"
+AMBER, WINDOW_FILL = "#d29922", "rgba(210,153,34,.12)"
 
 
 def parse_gap(value) -> float | None:
@@ -59,55 +60,76 @@ def recent_pace(laps_now: pd.DataFrame, drv: str) -> float | None:
 
 
 def outcome(laps_all: pd.DataFrame, behind: str, ahead: str, t: int, gap0: float) -> dict:
-    """O que aconteceu nas H voltas depois de t: a volta da disputa ou o motivo de a conta parar."""
+    """O que aconteceu nas H voltas depois de t.
+
+    Devolve a volta em que a disputa começou (gap abaixo de 1 s), a da ultrapassagem (gap abaixo de zero:
+    o carro de trás passou à frente) e o caminho do gap real volta a volta. O caminho segue depois da
+    disputa, para mostrar a ultrapassagem, e para na primeira parada, safety car ou VSC, pneu de chuva ou
+    volta sem tempo de algum dos dois (`stop` diz o motivo).
+    """
     r = laps_all.set_index(["driver", "lap"])
     status = r["track_status"].fillna("").astype(str) if "track_status" in r else pd.Series("", index=r.index)
-    path, gap = [gap0], gap0
+    path, gap, catch, passed, stop = [gap0], gap0, None, None, None
     for k in range(1, H + 1):
         kb, ka = (behind, t + k), (ahead, t + k)
         if kb not in r.index or ka not in r.index:
-            return {"lap": None, "path": path, "stop": "a gravação ainda não chegou lá" if k == 1 else "fim dos dados"}
+            stop = "a gravação ainda não chegou lá" if k == 1 else "fim dos dados"
+            break
         for key in (kb, ka):
             if bool(r.at[key, "pit_in"]) or bool(r.at[key, "pit_out"]):
-                return {"lap": None, "path": path, "stop": f"parada de {key[0]} na volta {t + k}"}
-            if any(c in status[key] for c in "4567"):
-                return {"lap": None, "path": path, "stop": f"safety car ou VSC na volta {t + k}"}
-            if str(r.at[key, "compound"]).upper() in WET:
-                return {"lap": None, "path": path, "stop": f"pneu de chuva na volta {t + k}"}
-        if pd.isna(r.at[kb, "lap_time"]) or pd.isna(r.at[ka, "lap_time"]):
-            return {"lap": None, "path": path, "stop": f"volta {t + k} sem tempo"}
+                stop = f"parada de {key[0]} na volta {t + k}"
+            elif any(c in status[key] for c in "4567"):
+                stop = f"safety car ou VSC na volta {t + k}"
+            elif str(r.at[key, "compound"]).upper() in WET:
+                stop = f"pneu de chuva na volta {t + k}"
+            if stop:
+                break
+        if stop is None and (pd.isna(r.at[kb, "lap_time"]) or pd.isna(r.at[ka, "lap_time"])):
+            stop = f"volta {t + k} sem tempo"
+        if stop:
+            break
         gap += float(r.at[kb, "lap_time"]) - float(r.at[ka, "lap_time"])
         path.append(gap)
-        if gap <= duels.BATTLE_GAP:
-            return {"lap": t + k, "k": k, "path": path, "stop": None}
-    return {"lap": None, "path": path, "stop": None}
+        if catch is None and gap <= duels.BATTLE_GAP:
+            catch = k
+        if passed is None and gap < 0:
+            passed = k
+    return {"lap": t + catch if catch else None, "k": catch, "pass_lap": t + passed if passed else None,
+            "path": path, "stop": stop}
 
 
-def sparkline(gap0: float, proj: dict, window: dict, real: list[float] | None = None, w: int = 300, h: int = 92) -> str:
-    """Gap projetado (linha e faixa de 80%), a zona de ataque (1 s), a janela prevista e, na gravação, o real."""
+def sparkline(gap0: float, proj: dict, window: dict, t: int, real: list[float] | None = None,
+              w: int = 300, h: int = 104) -> str:
+    """Gap projetado (linha e faixa de 80%), a zona de ataque (1 s), a linha da ultrapassagem (0 s), a janela
+    prevista e, na gravação, o gap real. O eixo horizontal traz o número de cada volta; a primeira, em
+    destaque, é a volta em que a previsão foi feita."""
     mu, sd = np.concatenate([[gap0], proj["mu"]]), np.concatenate([[0.0], proj["sd"]])
     hi, lo = mu + Z80 * sd, mu - Z80 * sd
     real = real or []
     top = max(float(np.max(hi)), max(real, default=0), gap0, 1.5) * 1.06
-    # abaixo de zero o carro de trás já passou e a projeção perde sentido (os dois passam a se influenciar)
-    bottom = max(min(0.0, float(np.min(lo)), min(real, default=0)), -2.0)
+    # abaixo de zero o carro de trás já passou; longe disso a projeção perde sentido (os dois se influenciam),
+    # por isso o eixo para em −2 s, mas mostra sempre um pouco abaixo de zero para a linha da ultrapassagem
+    bottom = min(max(min(0.0, float(np.min(lo)), min(real, default=0)), -2.0), -0.6)
     pl, pr, pt, pb = 30, 8, 6, 18
     n = len(mu) - 1
     x = lambda k: pl + (w - pl - pr) * k / max(n, 1)
     y = lambda v: pt + (h - pt - pb) * (top - v) / (top - bottom)
     pts = lambda arr: " ".join(f"{x(k):.1f},{y(v):.1f}" for k, v in enumerate(arr))
     band = pts(hi) + " " + " ".join(f"{x(k):.1f},{y(v):.1f}" for k, v in reversed(list(enumerate(lo))))
-    clip = f"c{abs(hash((gap0, float(mu[-1])))) % 10**8}"
+    clip = f"c{abs(hash((gap0, t, float(mu[-1])))) % 10**8}"
     parts = [f"<svg viewBox='0 0 {w} {h}' width='100%' height='{h}' role='img' aria-label='gap projetado'>",
              f"<defs><clipPath id='{clip}'><rect x='{pl}' y='{pt}' width='{w - pl - pr}' height='{h - pt - pb}'/></clipPath></defs>"]
     if window.get("early"):
         x0 = x(window["early"] - 0.5)
         x1 = x(min(window["late"] if not window["late_open"] else n, n) + 0.5)
-        parts.append(f"<rect x='{x0:.1f}' y='{pt}' width='{max(x1 - x0, 2):.1f}' height='{h - pt - pb}' fill='rgba(210,153,34,.12)'/>")
-    parts.append(f"<line x1='{pl}' x2='{w - pr}' y1='{y(duels.BATTLE_GAP):.1f}' y2='{y(duels.BATTLE_GAP):.1f}' "
-                 f"stroke='#d29922' stroke-dasharray='4 3' stroke-width='1'/>")
-    parts.append(f"<text x='{pl - 4}' y='{y(duels.BATTLE_GAP) + 3:.1f}' fill='#d29922' font-size='9' text-anchor='end'>1 s</text>")
-    if abs(y(gap0) - y(duels.BATTLE_GAP)) >= 10:
+        parts.append(f"<rect x='{x0:.1f}' y='{pt}' width='{max(x1 - x0, 2):.1f}' height='{h - pt - pb}' fill='{WINDOW_FILL}'/>")
+    y1, y0 = y(duels.BATTLE_GAP), y(0.0)
+    parts.append(f"<line x1='{pl}' x2='{w - pr}' y1='{y1:.1f}' y2='{y1:.1f}' stroke='{AMBER}' stroke-dasharray='4 3' stroke-width='1'/>")
+    parts.append(f"<line x1='{pl}' x2='{w - pr}' y1='{y0:.1f}' y2='{y0:.1f}' stroke='{HIT}' stroke-dasharray='4 3' stroke-width='1'/>")
+    # "1 s" fica logo acima da sua linha e "0 s" logo abaixo da dela, para não se sobreporem
+    parts.append(f"<text x='{pl - 4}' y='{y1 - 1:.1f}' fill='{AMBER}' font-size='9' text-anchor='end'>1 s</text>")
+    parts.append(f"<text x='{pl - 4}' y='{y0 + 8:.1f}' fill='{HIT}' font-size='9' text-anchor='end'>0 s</text>")
+    if abs(y(gap0) - y1) >= 11:
         parts.append(f"<text x='{pl - 4}' y='{y(gap0) + 3:.1f}' fill='{MUTED}' font-size='9' text-anchor='end'>{gap0:.1f}</text>")
     parts.append(f"<g clip-path='url(#{clip})'><polygon points='{band}' fill='{BAND}' stroke='none'/>")
     parts.append(f"<polyline points='{pts(mu)}' fill='none' stroke='{LINE}' stroke-width='2'/>")
@@ -115,11 +137,33 @@ def sparkline(gap0: float, proj: dict, window: dict, real: list[float] | None = 
         parts.append(f"<polyline points='{pts(real)}' fill='none' stroke='{INK}' stroke-width='1.2' stroke-dasharray='2 2'/>")
         parts += [f"<circle cx='{x(k):.1f}' cy='{y(v):.1f}' r='2.4' fill='{INK}'/>" for k, v in enumerate(real) if k]
     parts.append("</g>")
-    for k, label in ((0, "agora"), (5, "+5"), (n, f"+{n}")):
-        if k <= n:
-            parts.append(f"<text x='{x(k):.1f}' y='{h - 4}' fill='{MUTED}' font-size='9' text-anchor='middle'>{label}</text>")
+    for k in range(n + 1):
+        color, weight = (INK, 600) if k == 0 else (MUTED, 400)
+        parts.append(f"<text x='{x(k):.1f}' y='{h - 5}' fill='{color}' font-size='8.5' font-weight='{weight}' "
+                     f"text-anchor='middle'>{t + k}</text>")
     parts.append("</svg>")
     return "".join(parts)
+
+
+def legend(show_real: bool) -> str:
+    """Legenda dos gráficos dos duelos, uma vez para todos os cartões."""
+    def sw(body: str) -> str:
+        return f"<svg width='24' height='10' viewBox='0 0 24 10' aria-hidden='true'>{body}</svg>"
+    items = [
+        (sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{LINE}' stroke-width='2'/>"), "gap previsto pela GRU"),
+        (sw(f"<rect x='1' y='1' width='22' height='8' fill='{BAND}'/>"), "faixa de 80% do gap"),
+        (sw(f"<rect x='1' y='0' width='22' height='10' fill='{WINDOW_FILL}' stroke='{AMBER}' stroke-opacity='.35'/>"),
+         "janela da disputa (80%)"),
+        (sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{AMBER}' stroke-dasharray='4 3'/>"), "1 s: começa a disputa"),
+        (sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{HIT}' stroke-dasharray='4 3'/>"),
+         "0 s: ultrapassagem (o de trás passa à frente)"),
+    ]
+    if show_real:
+        items.append((sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{INK}' stroke-dasharray='2 2'/>"
+                         f"<circle cx='12' cy='5' r='2.4' fill='{INK}'/>"), "gap real (gravação)"))
+    spans = "".join(f"<span>{icon}{html.escape(text)}</span>" for icon, text in items)
+    return (f"<div class='duel-legend'>{spans}<span class='axis'>Eixo vertical: gap do carro de trás para o da frente, "
+            f"em segundos. Eixo horizontal: número da volta; a primeira, em destaque, é a volta da previsão.</span></div>")
 
 
 def card(pair: dict, show_outcome: bool) -> str:
@@ -146,14 +190,15 @@ def card(pair: dict, show_outcome: bool) -> str:
         real = o["path"]
         if o["lap"] is not None:
             inside = w["early"] is not None and w["early"] <= o["k"] and (w["late_open"] or o["k"] <= w["late"])
+            passed = f" · ultrapassagem na volta {o['pass_lap']}" if o["pass_lap"] else ""
             result = (f"<div class='duel-out {'hit' if inside else 'miss'}'>{'✔' if inside else '✘'} A disputa começou na volta {o['lap']}"
-                      f"{' dentro da janela' if inside else ' fora da janela'}</div>")
+                      f"{', dentro da janela' if inside else ', fora da janela'}{passed}</div>")
         elif o["stop"]:
             result = f"<div class='duel-out stop'>Conta interrompida: {html.escape(o['stop'])}</div>"
         else:
             hit = w["likely"] is None
             result = (f"<div class='duel-out {'hit' if hit else 'miss'}'>{'✔' if hit else '✘'} Não houve disputa nas {H} voltas seguintes</div>")
-    return (f"<div class='duel'>{head}{body}{sparkline(pair['gap0'], proj, w, real)}"
+    return (f"<div class='duel'>{head}{body}{sparkline(pair['gap0'], proj, w, t, real)}"
             f"<div class='duel-text'>{html.escape(text)}</div>"
             f"{result}</div>")
 
@@ -230,4 +275,5 @@ def render(rows: list[dict], laps_now: pd.DataFrame, laps_all: pd.DataFrame, pre
     if not pairs:
         st.caption("Nenhum par a até 5 s com chance de disputa nas próximas voltas.")
         return
-    st.markdown("<div class='duels'>" + "".join(card(p, show) for p in pairs) + "</div>", unsafe_allow_html=True)
+    st.markdown(legend(show) + "<div class='duels'>" + "".join(card(p, show) for p in pairs) + "</div>",
+                unsafe_allow_html=True)

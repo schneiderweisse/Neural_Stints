@@ -72,6 +72,9 @@ table.timing tr.loss > td {z-index: 1;}
 .duel-out {font-size: 12.5px; margin-top: 5px; font-weight: 500;}
 .duel-out.hit {color: #3fb950;} .duel-out.miss {color: #f85149;} .duel-out.stop {color: #7d8590;}
 .duel-now {color: #d29922; font-size: 13px; margin: 2px 0 8px;}
+.duel-legend {display: flex; flex-wrap: wrap; gap: 4px 16px; color: #7d8590; font-size: 12px; margin: 2px 0 8px;}
+.duel-legend span {display: inline-flex; align-items: center; gap: 6px;}
+.duel-legend span.axis {flex-basis: 100%; font-size: 11.5px;}
 table.timing .mv-tag {margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--edge);
     animation: 1.5s ease-in-out both;}
 table.timing tr.mv-a .mv-tag {animation-name: tag-a;}

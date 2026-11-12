@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import streamlit as st
 
-from dashboard import data
+from dashboard import data, duels_view
 from live.feed import DEFAULT_URL, STALE_AFTER, heartbeat_age, heartbeat_time
 from live.laps import as_list, session_key, sub
 from modeling.figures import COMPOUND_LETTER, compound_color, lap_times, live_forecast
@@ -227,15 +227,18 @@ def team_colors(state: dict) -> dict[str, str]:
 def render_body(state: dict, session_dir, clock: float | None, clock_label: str = "", mode: str = "live",
                 demo: bool = False) -> None:
     st.markdown(session_header(state, clock_label, mode), unsafe_allow_html=True)
-    rows, _ = timing_rows(state)
+    rows, race = timing_rows(state)
     moves = position_moves(rows, f"order_{mode == 'live'}_{session_dir.name if session_dir else 'live'}", clock)
     st.markdown(timing_table(state, moves), unsafe_allow_html=True)
 
-    laps = data.read_parquet_fresh(session_dir / "laps.parquet") if session_dir else None
+    laps_all = laps = data.read_parquet_fresh(session_dir / "laps.parquet") if session_dir else None
     if laps is not None and clock is not None:
         # lidas ao vivo, as voltas guardam o horário real; refeitas da gravação, o tempo desde o início dela
         live_clock = laps["clock"].max() > 1e8
         laps = laps[laps["clock"] <= (heartbeat_time(state) or float("inf") if live_clock else clock)]
+    preds = data.read_parquet_fresh(session_dir / "predictions.parquet") if session_dir else None
+    if race and preds is not None and not preds.empty and laps is not None and not laps.empty:
+        duels_view.render(rows, laps, laps_all, preds, session_dir.name, recorded=clock is not None, demo=demo)
     st.subheader("Tempos de volta")
     if laps is None or laps.empty:
         st.caption("Ainda não há voltas completadas gravadas pelo live.reader nesta sessão.")
@@ -246,7 +249,6 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
     picked = st.multiselect("Pilotos", options, default=options[:5], key=f"drivers_{session_dir.name}")
     st.plotly_chart(lap_times(laps, picked, team_colors(state)), width="stretch", config={"displaylogo": False})
 
-    preds = data.read_parquet_fresh(session_dir / "predictions.parquet")
     if preds is None or preds.empty:
         if demo:
             st.caption("Nesta corrida não há previsões da GRU: 2019 é anterior aos dados de treino (2022 a 2026). "

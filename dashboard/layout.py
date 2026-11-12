@@ -58,6 +58,20 @@ table.timing tr.loss > td {z-index: 1;}
   78% {transform: translateY(0); background: var(--hl); box-shadow: inset 0 1px 0 var(--edge), inset 0 -1px 0 var(--edge);}
   100% {transform: translateY(0); background: transparent; box-shadow: none;}
 }
+/* duelos: um cartão por par, embaixo da cronometragem */
+.duels {display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin: 4px 0 18px 0;}
+.duel {border: 1px solid #30363d; border-radius: 6px; background: #161b22; padding: 9px 12px 10px;}
+.duel-head {display: flex; align-items: center; gap: 6px; color: #e6edf3; font-size: 14px;}
+.duel-head .dot {display: inline-block; width: 4px; height: 14px; border-radius: 2px;}
+.duel-arrow {color: #7d8590;}
+.duel-pos {margin-left: auto; color: #7d8590; font-size: 12px;}
+.duel-pin {font-size: 11px; color: #a371f7; border: 1px solid #a371f7; border-radius: 2em; padding: 0 7px;}
+.duel-meta {color: #7d8590; font-size: 12px; margin: 3px 0 4px;}
+.duel-text {color: #e6edf3; font-size: 13px; margin-top: 2px;}
+.duel-note {color: #d29922; font-size: 13px; margin-top: 6px;}
+.duel-out {font-size: 12.5px; margin-top: 5px; font-weight: 500;}
+.duel-out.hit {color: #3fb950;} .duel-out.miss {color: #f85149;} .duel-out.stop {color: #7d8590;}
+.duel-now {color: #d29922; font-size: 13px; margin: 2px 0 8px;}
 table.timing .mv-tag {margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--edge);
     animation: 1.5s ease-in-out both;}
 table.timing tr.mv-a .mv-tag {animation-name: tag-a;}

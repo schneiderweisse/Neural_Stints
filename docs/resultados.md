@@ -202,6 +202,18 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Ao vivo | Interlagos: por piloto, voltas reais e previsão das próximas 10 voltas no cenário A, com faixa p10–p90; tabela de todos os pilotos |
 | Simulador de estratégia (cenário B) | v1 |
 
+## Duelos
+
+`modeling/duels.py` projeta o gap entre dois carros com as previsões da GRU e dá a volta em que o carro de trás deve chegar a menos de 1 s do da frente (a disputa), com uma janela de 80%. `modeling/duels_backtest.py` mede isso nas corridas de validação e teste e nas previsões feitas ao vivo em São Paulo, contra o ingênuo (ritmo médio das 3 últimas voltas limpas de cada um), e grava `runs/duels_<data>/metrics.json`.
+
+| Corridas | Situações | Disputas reais | Precisão GRU (ingênuo) | Recall GRU (ingênuo) | A ±1 volta GRU (ingênuo) | Na janela de 80% | Brier GRU (taxa fixa) |
+|---|---|---|---|---|---|---|---|
+| Validação (Zandvoort, Monza, Madring, Baku) | 809 | 41% | 80% (74%) | 55% (55%) | 75% (70%) | 80% | 0,163 (0,241) |
+| Teste (Singapura, Austin, México) | 515 | 38% | 82% (75%) | 78% (71%) | 86% (76%) | 93% | 0,120 (0,235) |
+| São Paulo, previsões feitas ao vivo, pneu liso | 160 | 50% | 84% (78%) | 66% (65%) | 74% (73%) | 80% | 0,166 (0,250) |
+
+Precisão: das disputas previstas nas 10 voltas seguintes (probabilidade de 50% ou mais), quantas aconteceram. Recall: das disputas que aconteceram, quantas foram previstas. "A ±1 volta": entre as previstas que aconteceram, a parte cuja volta real ficou a até 1 volta da prevista. A largura da janela foi escolhida na validação.
+
 ## Relatórios de corrida
 
 Cada corrida com a rede ao vivo tem um relatório em `docs/race_reports/<ano>_<circuito>.md`, com as figuras na pasta de mesmo nome. Ele traz as métricas por fase da corrida e estudos de caso.

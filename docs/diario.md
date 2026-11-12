@@ -4,6 +4,33 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
 ## 12 de novembro de 2026
 
+### Duelos: quando um carro vai chegar no outro
+
+- **Ideia do Eduardo:** um módulo embaixo da cronometragem com pares de pilotos, comparando o ritmo e prevendo em quantas voltas começa a disputa de posição. O alvo é a aproximação, não a ultrapassagem: o carro de trás chegar a menos de 1 s do da frente na linha, a zona de ataque.
+- **Sem rede nova.** O gap projetado é o gap de agora mais a soma das diferenças de tempo previstas pela GRU para as próximas 10 voltas (`modeling/duels.py`). A incerteza vem dos quantis p10–p90 de cada piloto e dá a probabilidade de já estar a menos de 1 s em cada volta. Disso saem:
+  - **volta prevista:** onde essa probabilidade passa de 50%;
+  - **janela de 80%:** de onde passa de 10% até onde passa de 90%.
+- **Calibração:** somar os desvios como se os erros de um piloto fossem totalmente persistentes deixava a janela larga demais (98% de cobertura na validação). O fator 0,5, escolhido na validação, dá 80%.
+- **Backtest** (`modeling.duels_backtest`, resultados em `runs/duels_20261112/metrics.json`). Situações: ao fim de cada volta, cada carro a 1–5 s do da frente. Cada conta para na primeira parada, safety car, pneu de chuva ou volta sem tempo de algum dos dois, porque a projeção supõe que ninguém para.
+
+| Corridas | Situações | Disputas reais | Precisão GRU (ingênuo) | Recall GRU (ingênuo) | A ±1 volta GRU (ingênuo) | Na janela de 80% | Brier GRU (taxa fixa) |
+|---|---|---|---|---|---|---|---|
+| Validação (Zandvoort, Monza, Madring, Baku) | 809 | 41% | 80% (74%) | 55% (55%) | 75% (70%) | 80% | 0,163 (0,241) |
+| Teste (Singapura, Austin, México) | 515 | 38% | 82% (75%) | 78% (71%) | 86% (76%) | 93% | 0,120 (0,235) |
+| São Paulo, previsões feitas ao vivo, pneu liso | 160 | 50% | 84% (78%) | 66% (65%) | 74% (73%) | 80% | 0,166 (0,250) |
+
+  No teste, 82% das disputas que a rede previu aconteceram, e 86% delas começaram a até 1 volta da volta prevista. As probabilidades são bem calibradas nas faixas de 40% a 100%. Na faixa de 20% a 40% do teste, a disputa veio menos vezes do que a rede previu (8%).
+- **No painel** (`dashboard/duels_view.py`), embaixo da cronometragem:
+  - os duelos fixos escolhidos (sempre um par; na demo, NOR × VER);
+  - os três pares vizinhos a até 5 s com mais chance de disputa;
+  - a lista dos que já estão a menos de 1 s.
+  - **Cada cartão** traz o gap, o ritmo das 3 últimas voltas de cada um, o gráfico do gap projetado com a faixa e a janela, e a volta prevista com a chance. Avisa quando a projeção não vale: pneu de chuva, box ou falta de previsão.
+  - **Na gravação,** o cartão mostra também o que aconteceu depois: ✔ quando a disputa começou dentro da janela, ✘ quando veio fora dela ou não veio, ou o motivo de a conta ter parado.
+- **Testado:**
+  - na reprodução de São Paulo, no painel completo e na demo;
+  - o tempo de cada atualização fora do navegador ficou entre 0,16 e 0,24 s;
+  - na demo, a reprodução seguiu a um quadro a cada ~1,5 s.
+
 ### Transição de troca de posição na cronometragem
 
 - **Ideia do Eduardo,** vendo a reprodução de Interlagos na demo. Quando um piloto ganha ou perde posição, a linha dele primeiro ganha destaque ainda no lugar antigo, verde para quem subiu e vermelho para quem desceu. Depois ela desliza até o lugar novo e o destaque se apaga. Uma seta (▲2, ▼1) aparece ao lado da posição durante a transição.

@@ -231,6 +231,16 @@ A outra é usar esse modelo como conferência da rede: se a GRU projeta 0,84 s d
 - **Recalibrar a faixa.** Testar intervalos conformais adaptativos, que alargam quando a cobertura recente cai. Testar também em validação e teste, pelo que aconteceu com a correção da mediana.
 - **Tratar leituras impossíveis do feed.** O feed marcou pista a 0,0 °C às 14:25, e esse valor entrou como variável em 15 registros, nas voltas 15 e 16.
 
+## Duelos: a aproximação prevista
+
+Depois da corrida, a mesma GRU passou a projetar o gap entre dois carros (`modeling/duels.py`). A previsão é a volta em que o carro de trás chega a menos de 1 s do da frente, a zona de ataque. Com as previsões feitas ao vivo em São Paulo, só nos trechos de pneu liso, houve 160 situações de carros a 1–5 s do da frente e 80 disputas reais nas 10 voltas seguintes:
+
+- **detecção:** 84% das disputas previstas aconteceram (ingênuo: 78%), e a rede previu 66% das que aconteceram (65%);
+- **volta:** 74% das disputas previstas e confirmadas começaram a até 1 volta da prevista;
+- **janela:** a janela de 80% conteve 80% das disputas reais.
+
+O detalhe, com a validação e o teste, está em [resultados.md](../resultados.md#duelos). Na [demo do painel](https://schneiderweisse.github.io/Neural_Stints/), os duelos aparecem embaixo da cronometragem, com o que aconteceu depois de cada momento.
+
 ## Conferência com os dados oficiais
 
 Os dados oficiais da corrida saíram no TracingInsights dois dias depois (10/11). As voltas gravadas ao vivo pelo leitor batem com eles:

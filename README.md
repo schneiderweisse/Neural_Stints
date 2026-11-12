@@ -111,7 +111,7 @@ No macOS ou Linux, use `python3` e `.venv/bin/python`.
 pipeline/   scripts de coleta e preparação dos dados
 modeling/   modelos (baselines e redes) e cálculo das métricas
 live/       leitura do live timing (f1-dash ou gravação), gravador, histórico e previsões ao vivo
-dashboard/  painel Streamlit (abas Ao Vivo, GRU v0 e Tarefas A e B)
+dashboard/  painel Streamlit (abas Ao Vivo, com cronometragem, duelos e previsões; GRU v0; Tarefas A e B)
 demo/       demo do painel para o GitHub Pages (stlite, sem a parte ao vivo) e os seus dados enxutos
 runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)

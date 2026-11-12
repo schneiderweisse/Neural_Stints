@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "demo"
 FILES = DEMO / "files"
 CODE = ["dashboard/__init__.py", "dashboard/data.py", "dashboard/layout.py", "dashboard/live_tab.py",
-        "dashboard/model_tab.py", "dashboard/tasks_tab.py", "live/__init__.py", "live/feed.py", "live/laps.py",
-        "modeling/__init__.py", "modeling/figures.py"]
+        "dashboard/model_tab.py", "dashboard/tasks_tab.py", "dashboard/duels_view.py", "live/__init__.py", "live/feed.py",
+        "live/laps.py", "modeling/__init__.py", "modeling/duels.py", "modeling/figures.py"]
 RUN_FILES = ["config.json", "metrics.json", "history.csv", "predictions.parquet"]
 REPLAY_SESSIONS = ["2026_interlagos_race", "2019_hockenheim_race"]
 PREDICTION_COLUMNS = ["driver", "t", "h", "lap", "time_p10", "time_p50", "time_p90", "time_real", "clean", "gru_run"]

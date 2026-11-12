@@ -11,6 +11,7 @@ on:
       - "live/feed.py"
       - "live/laps.py"
       - "modeling/figures.py"
+      - "modeling/duels.py"
       - ".github/workflows/demo.yml"
   workflow_dispatch:
 

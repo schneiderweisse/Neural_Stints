@@ -4,7 +4,7 @@ Versão pública do painel, sem a parte ao vivo. Fica em **https://schneiderweis
 
 | Aba | O que mostra |
 |---|---|
-| Corridas gravadas | O GP de São Paulo de 2026 e o GP da Alemanha de 2019, gravados do feed oficial pelo f1-dash, com cronometragem, pneus, setores e tempos de volta. Dá para arrastar o momento ou apertar Reproduzir. Na corrida de 2026 aparecem as previsões que a GRU fez ao vivo, com a comparação de dois pilotos. |
+| Corridas gravadas | O GP de São Paulo de 2026 e o GP da Alemanha de 2019, gravados do feed oficial pelo f1-dash, com cronometragem, pneus, setores e tempos de volta. Dá para arrastar o momento ou apertar Reproduzir. Na corrida de 2026 aparecem as previsões que a GRU fez ao vivo, com a comparação de dois pilotos, e os duelos: em quantas voltas um carro deve chegar a menos de 1 s do outro, com o que aconteceu de fato. |
 | GRU v0 | O ajuste da rede (média de 5 sementes) contra o baseline ingênuo nas corridas de validação e teste de 2026. |
 | Tarefas A e B | Previsto × real para até dois pilotos: as próximas k voltas e o stint inteiro. |
 

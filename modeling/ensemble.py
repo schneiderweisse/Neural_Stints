@@ -1,6 +1,6 @@
-"""Ensemble de GRUs: média dos quantis de várias sementes já treinadas.
+"""Ensemble de redes (GRU ou LSTM): média dos quantis de várias sementes já treinadas.
 
-Os membros são runs da GRU treinados no mesmo dataset (por exemplo as 5 sementes de uma configuração
+Os membros são runs de modeling.gru (todos com a mesma célula) treinados no mesmo dataset (por exemplo as 5 sementes de uma configuração
 da bateria). A previsão do ensemble, volta a volta, é a média dos p10, p50 e p90 dos membros; a média
 de quantis em ordem continua em ordem. O run gravado tem o formato padrão de docs/resultados.md
 (previsões de validação e teste, métricas e as curvas de treino de cada membro) e um model.pt com os
@@ -42,8 +42,12 @@ def build(members: list[Path], run_id: str, reference: Path | None, out_root: Pa
     if len(metas) > 1:
         raise ValueError("os membros usam normalizações ou vocabulários diferentes; precisam do mesmo dataset")
     configs = [ck["config"] for ck in cks]
+    models = {c["model"] for c in configs}
+    if len(models) > 1:
+        raise ValueError(f"os membros misturam células diferentes: {sorted(models)}")
+    model = models.pop()
 
-    pred = finish_predictions(average([pd.read_parquet(m / "predictions.parquet") for m in members]), run_id, "gru")
+    pred = finish_predictions(average([pd.read_parquet(m / "predictions.parquet") for m in members]), run_id, model)
     ref = pd.read_parquet(reference / "predictions.parquet") if reference else None
     metrics = compute_metrics(pred, ref)
     if reference:
@@ -52,7 +56,7 @@ def build(members: list[Path], run_id: str, reference: Path | None, out_root: Pa
     first = configs[0]
     same_hp = all(c["hyperparameters"] == first["hyperparameters"] for c in configs)
     config = {
-        "run_id": run_id, "model": "gru", "seed": None,
+        "run_id": run_id, "model": model, "seed": None,
         "ensemble": {"method": "média dos quantis", "members": [m.name for m in members],
                      "member_paths": [m.resolve().relative_to(RUNS.resolve()).as_posix()
                                       if m.resolve().is_relative_to(RUNS.resolve()) else m.as_posix() for m in members],
@@ -79,12 +83,13 @@ def build(members: list[Path], run_id: str, reference: Path | None, out_root: Pa
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
-    ap.add_argument("members", nargs="+", type=Path, help="pastas dos runs da GRU que entram na média")
-    ap.add_argument("--run-id", help="padrão: gru_<data>_ens<n>")
+    ap.add_argument("members", nargs="+", type=Path, help="pastas dos runs (GRU ou LSTM) que entram na média")
+    ap.add_argument("--run-id", help="padrão: <célula>_<data>_ens<n>")
     ap.add_argument("--reference", type=Path, help="pasta do run do ingênuo para o skill (padrão: o mais recente)")
     ap.add_argument("--out", type=Path, default=RUNS, help="pasta onde o run é gravado")
     args = ap.parse_args()
-    run_id = args.run_id or f"gru_{date.today():%Y%m%d}_ens{len(args.members)}"
+    cell = json.loads((args.members[0] / "config.json").read_text(encoding="utf-8"))["model"]
+    run_id = args.run_id or f"{cell}_{date.today():%Y%m%d}_ens{len(args.members)}"
     out = build(args.members, run_id, args.reference or latest_run("naive"), args.out)
     m = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
     print(f"{run_id}: média de {len(args.members)} membros -> {out}")

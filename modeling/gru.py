@@ -1,4 +1,4 @@
-"""GRU encoder–decoder com saída quantílica (v0).
+"""Encoder–decoder recorrente com saída quantílica: GRU (v0) ou LSTM (`--cell lstm`).
 
 - Contexto estático: embeddings de circuito, piloto, equipe-ano e regulamento, mais as estáticas
   numéricas, passam por uma camada densa. O contexto inicializa o estado do encoder e entra no
@@ -13,7 +13,13 @@
 O encoder lê cada corrida uma vez e todas as previsões da sequência partem dos seus estados, então
 cada época processa as ~1.800 sequências de treino, não as ~94 mil janelas.
 
-Uso, a partir da pasta Neural_Stints:  .venv/Scripts/python -m modeling.gru [--hidden 64] [--seed 1]
+Com `--cell lstm`, as duas GRUs viram LSTMs e o resto não muda. O estado da LSTM é o par (h, c), e o
+decoder de cada volta t parte dos dois; como a nn.LSTM só devolve o h de cada passo, o encoder da LSTM
+anda volta a volta para guardar também o c. O c inicial sai do contexto, como o h.
+
+Uso, a partir da pasta Neural_Stints:
+    .venv/Scripts/python -m modeling.gru [--hidden 64] [--seed 1]
+    .venv/Scripts/python -m modeling.gru --cell lstm --hidden 32 --seed 1     # -> runs/lstm_<data>_s1/
 """
 import argparse
 import json
@@ -35,16 +41,43 @@ QUANTILES = (0.1, 0.5, 0.9)
 EMB_DIMS = {"circuit": 4, "driver": 4, "team_year": 4, "regulation": 2}
 
 
+CELLS = {"gru": nn.GRU, "lstm": nn.LSTM}
+
+
 class Seq2SeqGRU(nn.Module):
-    def __init__(self, n_obs, n_known, vocab_sizes, emb_dims, n_static_x, hidden=64, context=16, dropout=0.1):
+    """O encoder–decoder; o nome ficou da v0, a célula (GRU ou LSTM) vem de `cell`."""
+
+    def __init__(self, n_obs, n_known, vocab_sizes, emb_dims, n_static_x, hidden=64, context=16, dropout=0.1,
+                 cell="gru"):
         super().__init__()
+        self.cell = cell
         self.embs = nn.ModuleList(nn.Embedding(v, e) for v, e in zip(vocab_sizes, emb_dims))
         self.context = nn.Sequential(nn.Linear(sum(emb_dims) + n_static_x, context), nn.Tanh())
         self.h0 = nn.Linear(context, hidden)
-        self.encoder = nn.GRU(n_obs + n_known + context, hidden, batch_first=True)
-        self.decoder = nn.GRU(n_known + context, hidden, batch_first=True)
+        if cell == "lstm":
+            self.c0 = nn.Linear(context, hidden)
+        self.encoder = CELLS[cell](n_obs + n_known + context, hidden, batch_first=True)
+        self.decoder = CELLS[cell](n_known + context, hidden, batch_first=True)
         self.drop = nn.Dropout(dropout)
         self.head = nn.Linear(hidden, 3)
+
+    def encode(self, enc_in, ctx) -> tuple:
+        """Estado ao fim de cada volta: (h,) na GRU e (h, c) na LSTM, cada um (B, L, hidden)."""
+        h0 = torch.tanh(self.h0(ctx))[None]
+        if self.cell == "gru":
+            h_all, _ = self.encoder(enc_in, h0)
+            return (h_all,)
+        state, hs, cs = (h0, self.c0(ctx)[None]), [], []
+        for t in range(enc_in.shape[1]):
+            _, state = self.encoder(enc_in[:, t:t + 1], state)
+            hs.append(state[0])
+            cs.append(state[1])
+        return torch.cat(hs).transpose(0, 1), torch.cat(cs).transpose(0, 1)
+
+    def start_state(self, states, shape):
+        """Estado inicial do decoder no formato da célula: h na GRU, (h, c) na LSTM."""
+        states = tuple(self.drop(s).reshape(shape).contiguous() for s in states)
+        return states[0] if self.cell == "gru" else states
 
     def forward(self, enc_x, known, static_cat, static_x, horizon):
         """enc_x (B, L, obs+known), known (B, L+H, known) -> quantis (B, L-1, H, 3).
@@ -55,14 +88,14 @@ class Seq2SeqGRU(nn.Module):
         emb = [e(static_cat[:, i]) for i, e in enumerate(self.embs)]
         ctx = self.context(torch.cat(emb + [static_x], dim=1))                     # (B, C)
         enc_in = torch.cat([enc_x, ctx[:, None].expand(B, L, -1)], dim=2)
-        h_all, _ = self.encoder(enc_in, torch.tanh(self.h0(ctx))[None])            # (B, L, hidden)
+        states = self.encode(enc_in, ctx)                                           # (B, L, hidden) cada
 
         T = L - 1                                                                   # âncoras t = 1..L-1
         idx = torch.arange(1, L, device=enc_x.device)[:, None] + torch.arange(horizon, device=enc_x.device)
         dec_in = known[:, idx]                                                      # voltas t+1..t+H
         dec_in = torch.cat([dec_in, ctx[:, None, None].expand(B, T, horizon, -1)], dim=3)
-        h_start = self.drop(h_all[:, :T]).reshape(1, B * T, -1)
-        out, _ = self.decoder(dec_in.reshape(B * T, horizon, -1), h_start.contiguous())
+        start = self.start_state([s[:, :T] for s in states], (1, B * T, -1))
+        out, _ = self.decoder(dec_in.reshape(B * T, horizon, -1), start)
         return self.quantiles(self.head(self.drop(out)).reshape(B, T, horizon, 3))
 
     @staticmethod
@@ -82,9 +115,9 @@ class Seq2SeqGRU(nn.Module):
         emb = [e(static_cat[:, i]) for i, e in enumerate(self.embs)]
         ctx = self.context(torch.cat(emb + [static_x], dim=1))
         enc_in = torch.cat([enc_x, ctx[:, None].expand(B, L, -1)], dim=2)
-        _, h_last = self.encoder(enc_in, torch.tanh(self.h0(ctx))[None])
+        start = self.start_state([s[:, -1] for s in self.encode(enc_in, ctx)], (1, B, -1))
         dec_in = torch.cat([future_known, ctx[:, None].expand(B, H, -1)], dim=2)
-        out, _ = self.decoder(dec_in, self.drop(h_last))
+        out, _ = self.decoder(dec_in, start)
         return self.quantiles(self.head(self.drop(out)))
 
 
@@ -168,6 +201,7 @@ def predict(model, batches, seqs, H, y_mean, y_std, device, batch=64):
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
+    ap.add_argument("--cell", choices=list(CELLS), default="gru", help="célula recorrente do encoder e do decoder")
     ap.add_argument("--hidden", type=int, default=64)
     ap.add_argument("--context", type=int, default=16)
     ap.add_argument("--dropout", type=float, default=0.1)
@@ -181,14 +215,14 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--dataset", default="dataset", help="dataset em data/processed (ex.: dataset_split5)")
     ap.add_argument("--out", type=Path, default=RUNS, help="pasta onde o run é gravado")
-    ap.add_argument("--run-id", help="padrão: gru_<data>_s<semente>")
+    ap.add_argument("--run-id", help="padrão: <célula>_<data>_s<semente>")
     ap.add_argument("--reference", type=Path, help="pasta do run do ingênuo para o skill (padrão: o mais recente)")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    run_id = args.run_id or f"gru_{date.today():%Y%m%d}_s{args.seed}"
+    run_id = args.run_id or f"{args.cell}_{date.today():%Y%m%d}_s{args.seed}"
 
     frame, laps, d, meta = target_frame(("val", "test"), args.dataset)
     H = meta["horizon"]
@@ -200,7 +234,7 @@ def main() -> None:
     vocab_sizes = [len(meta["vocabs"][c]) for c in meta["static_cat"]]
     emb_dims = [EMB_DIMS[c] for c in meta["static_cat"]]
     model = Seq2SeqGRU(d["x_obs"].shape[1], d["x_known"].shape[1], vocab_sizes, emb_dims,
-                       d["static_x"].shape[1], args.hidden, args.context, args.dropout).to(device)
+                       d["static_x"].shape[1], args.hidden, args.context, args.dropout, args.cell).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     opt = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     print(f"{run_id}: {n_params:,} parâmetros, {len(seqs['train'])} sequências de treino, dispositivo {device}")
@@ -244,7 +278,7 @@ def main() -> None:
     seq_of = np.searchsorted(d["offsets"], frame["anchor"].to_numpy(), side="right") - 1
     q = np.stack([preds[s][t - 1, h - 1] for s, t, h in zip(seq_of, frame["t"], frame["h"])])
     frame["pace_p10"], frame["pace_p50"], frame["pace_p90"] = q[:, 0], q[:, 1], q[:, 2]
-    pred = finish_predictions(frame, run_id, "gru")
+    pred = finish_predictions(frame, run_id, args.cell)
 
     naive_dir = args.reference or latest_run("naive")
     reference = pd.read_parquet(naive_dir / "predictions.parquet") if naive_dir else None
@@ -253,7 +287,7 @@ def main() -> None:
         metrics["reference_run"] = naive_dir.name
 
     config = {
-        "run_id": run_id, "model": "gru", "seed": args.seed,
+        "run_id": run_id, "model": args.cell, "seed": args.seed,
         "hyperparameters": {k: v for k, v in vars(args).items() if k not in ("seed", "dataset", "out", "run_id", "reference")}
                            | {"emb_dims": EMB_DIMS},
         "dataset": args.dataset,
@@ -268,7 +302,7 @@ def main() -> None:
                   "model_args": {"n_obs": d["x_obs"].shape[1], "n_known": d["x_known"].shape[1],
                                  "vocab_sizes": vocab_sizes, "emb_dims": emb_dims,
                                  "n_static_x": d["static_x"].shape[1], "hidden": args.hidden,
-                                 "context": args.context, "dropout": args.dropout}}
+                                 "context": args.context, "dropout": args.dropout, "cell": args.cell}}
     write_atomic(out / "model.pt", lambda p: torch.save(checkpoint, p))
     print(f"melhor época {best_epoch}, treino em {train_seconds:.0f} s -> {out}")
     print_summary(metrics)

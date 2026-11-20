@@ -139,7 +139,7 @@ class LivePredictor:
         frames = [f for f in frames if f is not None]
         if not frames:
             return
-        new = finish_predictions(pd.concat(frames, ignore_index=True), self.run_id, "gru")
+        new = finish_predictions(pd.concat(frames, ignore_index=True), self.run_id, self.config.get("model", "gru"))
         new["predicted_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         new["scenario"], new["scenario_compound"], new["scenario_pit_lap"] = "A", None, np.nan
         new["gru_run"] = self.run_dir.name

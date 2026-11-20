@@ -4,6 +4,35 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
 ## 20 de novembro de 2026
 
+### LSTM × GRU
+
+- **A mesma rede com a célula trocada:** `modeling.gru --cell lstm`. O resto é igual: dados, variáveis, decoder e treino. O estado da LSTM é o par (h, c), e o decoder de cada volta parte dos dois. Por isso o encoder da LSTM anda volta a volta, para guardar o c de cada volta.
+- **Conferências:**
+  - a GRU já treinada dá as mesmas previsões de antes (diferença de 7·10⁻⁹);
+  - na LSTM, a previsão do caminho ao vivo é igual à do treino;
+  - o previsor ao vivo agora grava o nome certo do modelo (`gru` ou `lstm`).
+- **Bateria** (`modeling.cells`, 20 treinos com 3 em paralelo, ~40 min). Cinco sementes em cada configuração:
+  - estado 32, a configuração da GRU;
+  - estado 26, com o mesmo número de parâmetros da GRU;
+  - estado 64;
+  - estado 32 com dropout 0,2.
+  - Pela validação, a LSTM escolhida também é a de estado 32 e dropout 0,1.
+
+| | GRU | LSTM |
+|---|---:|---:|
+| Parâmetros | 14.901 | 19.957 |
+| Pinball validação, por semente (s) | 0,207 ± 0,007 | 0,206 ± 0,008 |
+| MAE teste, por semente (s) | 0,496 ± 0,014 | 0,488 ± 0,020 |
+| MAE validação, ensemble de 5 (s) | 0,582 | **0,569** |
+| MAE teste, ensemble de 5 (s) | 0,472 | **0,457** |
+| São Paulo, reprodução com o previsor ao vivo (s) | 1,037 | **1,001** |
+| Segundos por época | 4,8 | 7,7 |
+
+- **Uma rede sozinha: empate.** A diferença por semente (0,004 s na validação, 0,008 s no teste) é menor que a variação entre sementes. Com os mesmos parâmetros da GRU (estado 26), a LSTM fica um pouco atrás na validação.
+- **No ensemble, a LSTM ganha por pouco, mas sempre:** 0,013 s na validação e 0,015 s no teste, com os intervalos fora do zero no bootstrap por piloto:corrida, e 0,036 s em São Paulo. As sementes dela variam mais entre si, e a média ganha mais com isso.
+- **Custo:** ~60% mais tempo por época e algumas épocas a mais até parar.
+- **O modelo ao vivo continua o ensemble da GRU.** O da LSTM (`runs/lstm_20261120_ens5`) está pronto e roda no previsor com `--run lstm_20261120_ens5`.
+
 ### Modelo linear misto e LightGBM
 
 - **Os dois baselines do plano**, no formato padrão (`runs/lmm_20261120/`, `runs/lgbm_20261120/`), comparados com o ingênuo e a GRU nas mesmas voltas por um script novo, `modeling.compare`. Tabelas completas em [resultados.md](resultados.md#comparação-dos-modelos-na-validação-e-no-teste).

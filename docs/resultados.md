@@ -158,7 +158,7 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 |---|---|---|
 | Ingênuo: média do ritmo das últimas 3 voltas limpas até a volta `t` (critério `clean_live`), repetida em todos os horizontes; sem intervalo | `naive_<data>` | ✅ |
 | GRU encoder–decoder, saída quantílica, todas as eras com embeddings (`pooled`), 1 semente | `gru_<data>_s1` | ✅ |
-| LSTM | | v1 |
+| LSTM: a mesma rede com `--cell lstm`, 5 sementes da configuração escolhida na validação (`modeling.cells`, feita em 20/11) | `lstm_<data>_ens5` | ✅ |
 | Modelo linear misto: composto × idade do pneu, progresso da corrida e temperatura, com intercepto e inclinação no progresso aleatórios por piloto:corrida (`modeling.lmm`, feito em 20/11) | `lmm_<data>` | ✅ |
 | LightGBM com lags do ritmo, um modelo por quantil (`modeling.lgbm`, feito em 20/11) | `lgbm_<data>` | ✅ |
 | Estratégias de eras `2026_only` e `pretrain_finetune` | | v1 |
@@ -306,6 +306,63 @@ A inclinação no progresso deixa cada piloto ter a sua evolução ao longo da p
 - **Ablação do circuito:** sem ele, o MAE da validação piora de 0,597 para 0,626 s e o do teste melhora de 0,503 para 0,489 s.
   - Pela validação, o circuito fica.
   - Sem ele, o clima (temperatura do ar, umidade) sobe no ranking, como um substituto do circuito.
+
+## LSTM × GRU
+
+`modeling.cells` treina a mesma rede encoder–decoder com a célula trocada (`modeling.gru --cell lstm`). São os mesmos dados (divisão de 3 corridas), a mesma taxa (0,001), o mesmo treino e 5 sementes por configuração. As GRUs vêm da bateria `sweep_20261106`. Relatório completo em `runs/cells_20261120/report.md`.
+
+- **Estado da LSTM:** é o par (h, c). O decoder de cada volta parte dos dois. Como a `nn.LSTM` só devolve o h de cada passo, o encoder da LSTM anda volta a volta para guardar o c.
+- **Configurações testadas:**
+  - estado 32, a mesma da GRU escolhida. A LSTM tem uma porta a mais e fica com 34% mais parâmetros;
+  - estado 26, o mesmo número de parâmetros da GRU (~15 mil);
+  - duas vizinhas (estado 64; dropout 0,2), para a LSTM não ficar presa à configuração ótima da GRU.
+- **Critério de escolha:** a média da pinball na validação, o mesmo da GRU.
+
+**Validação: a escolha** (média ± desvio entre 5 sementes)
+
+| Célula | Estado | Dropout | Parâmetros | Pinball validação (s) | MAE validação (s) | Cobertura validação | Melhor época |
+|---|---:|---:|---:|---|---|---|---:|
+| LSTM | 32 | 0,1 | 19.957 | **0,206 ± 0,008** (escolhida) | 0,606 ± 0,026 | 76,6% ± 3,2 | 20,2 |
+| GRU | 32 | 0,1 | 14.901 | 0,207 ± 0,007 (escolhida) | 0,610 ± 0,022 | 77,4% ± 2,7 | 16,0 |
+| LSTM | 32 | 0,2 | 19.957 | 0,207 ± 0,009 | 0,608 ± 0,024 | 78,2% ± 2,4 | 19,8 |
+| GRU | 32 | 0,2 | 14.901 | 0,208 ± 0,007 | 0,612 ± 0,019 | 79,2% ± 2,1 | 14,6 |
+| GRU | 64 | 0,1 | 41.365 | 0,211 ± 0,004 | 0,624 ± 0,013 | 75,3% ± 2,5 | 10,0 |
+| LSTM | 26 | 0,1 | 15.103 | 0,213 ± 0,008 | 0,630 ± 0,032 | 76,8% ± 2,7 | 17,8 |
+| LSTM | 64 | 0,1 | 55.573 | 0,214 ± 0,010 | 0,629 ± 0,027 | 76,2% ± 3,5 | 9,4 |
+
+**Teste, por semente** (Singapura, Austin, México)
+
+| Configuração | MAE teste (s) | Skill vs. ingênuo | Cobertura teste | Pinball teste (s) | Depois de parada (s) |
+|---|---|---|---|---|---|
+| GRU escolhida (estado 32) | 0,496 ± 0,014 | 25,1% ± 2,1 | 85,5% ± 1,8 | 0,166 ± 0,004 | 0,565 ± 0,014 |
+| LSTM escolhida (estado 32) | 0,488 ± 0,020 | 26,1% ± 3,2 | 85,3% ± 1,1 | 0,164 ± 0,007 | 0,571 ± 0,037 |
+| LSTM com os parâmetros da GRU (estado 26) | 0,496 ± 0,016 | 24,9% ± 2,6 | 85,7% ± 1,9 | 0,168 ± 0,005 | 0,572 ± 0,035 |
+
+Diferença de MAE, LSTM escolhida − GRU escolhida:
+- validação: −0,004 s, erro-padrão entre sementes 0,015 s;
+- teste: −0,008 s, erro-padrão entre sementes 0,011 s.
+
+**Ensembles de 5 sementes** (média dos quantis), nas mesmas voltas, com o bootstrap por piloto:corrida de `modeling.compare`:
+
+| Divisão | Modelo | MAE (s) | Pinball (s) | Cobertura 80% | Erro em 5 voltas (s) | MAE − GRU (IC 95%) |
+|---|---|---:|---:|---:|---:|---:|
+| validação | LSTM `lstm_20261120_ens5` | **0,569** | **0,195** | 78,6% | **1,84** | −0,013 (−0,023 a −0,004) |
+| validação | GRU `gru_20261106_ens5` | 0,582 | 0,198 | 79,3% | 1,92 | — |
+| teste | LSTM `lstm_20261120_ens5` | **0,457** | **0,157** | 87,4% | **1,46** | −0,015 (−0,022 a −0,008) |
+| teste | GRU `gru_20261106_ens5` | 0,472 | 0,159 | 87,7% | 1,51 | — |
+| São Paulo (reprodução) | LSTM | **1,001** | | 61,0% | | |
+| São Paulo (reprodução) | GRU | 1,037 | | 57,8% | | |
+
+A linha de São Paulo roda o previsor ao vivo (`live.predict`) sobre o histórico final da corrida, com cada ensemble, nas 7.661 voltas limpas previstas pelos dois. O número da GRU difere do relatório da corrida (1,115 s), que usa as previsões feitas durante a prova.
+
+**Tempo por época** (um treino de cada vez, CPU): GRU 32, 4,8 s; LSTM 32, 7,7 s; LSTM 26, 6,6 s. A LSTM também para mais tarde: a melhor época média é 20 (contra 16 da GRU). O treino de uma semente leva ~3,5 min, contra ~2 min da GRU.
+
+Leitura:
+- **Uma rede sozinha: empate.** A diferença entre as escolhidas é menor que a variação entre sementes. Com o mesmo número de parâmetros, a LSTM fica um pouco atrás na validação.
+- **Ensemble: a LSTM ganha por pouco e de forma consistente.** Fica 0,013 s melhor na validação e 0,015 s no teste, com os intervalos fora do zero, e também melhor na reprodução de São Paulo.
+  - A média das sementes ajuda mais a LSTM: ganha 0,037 s sobre a semente média na validação, contra 0,028 s da GRU. As sementes dela variam mais entre si.
+  - O bootstrap reamostra pilotos, não sementes. Com outro sorteio de 5 sementes, a diferença pode mudar de tamanho.
+- **Custo:** a LSTM treina ~60% mais devagar por época e para algumas épocas depois.
 
 ## Duelos
 

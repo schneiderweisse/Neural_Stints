@@ -42,14 +42,16 @@ class LivePredictor:
         self.dir = Path(session_dir)
         self.run_dir = run_dir or latest_run("gru")
         ck = torch.load(self.run_dir / "model.pt", weights_only=False)
-        # um ensemble (modeling.ensemble) guarda vários membros; um run comum é um membro só
+        # um ensemble (modeling.ensemble) guarda vários membros; um run comum é um membro só. Cada membro
+        # leva as categorias que trata como <unk> (modeling.gru: anos fora do treino, colunas apagadas)
         self.models = []
         for m in ck.get("members", [ck]):
             net = Seq2SeqGRU(**m["model_args"])
             net.load_state_dict(m["state_dict"])
             net.eval()
             norm = m["config"]["target_normalization"]
-            self.models.append((net, norm["mean"], norm["std"]))
+            unk = (m["config"].get("hyperparameters") or {}).get("unk_categories") or {}
+            self.models.append((net, norm["mean"], norm["std"], unk))
         self.meta, self.config = ck["dataset_meta"], ck["config"]
         self.H, self.min_context = self.meta["horizon"], self.meta["min_context"]
 
@@ -92,10 +94,12 @@ class LivePredictor:
             "compound": last["compound"],
         })
 
-    def static(self, g: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    def static(self, g: pd.DataFrame, unk: dict) -> tuple[np.ndarray, np.ndarray]:
         first = g.head(1)
-        cat = [self.meta["vocabs"][c].index(str(first[c].iloc[0])) if str(first[c].iloc[0]) in self.meta["vocabs"][c]
-               else 0 for c in sq.STATIC_CAT]
+        cat = [self.meta["vocabs"][c].index(str(first[c].iloc[0]))
+               if str(first[c].iloc[0]) in self.meta["vocabs"][c] and str(first[c].iloc[0]) not in unk.get(c, [])
+               else 0
+               for c in sq.STATIC_CAT]
         return np.array([cat], np.int64), sq.encode(first, sq.STATIC_NUM, sq.STATIC_BOOL, self.meta["stats"])
 
     # -------------------------------------------------------------- previsão
@@ -109,11 +113,13 @@ class LivePredictor:
         fut = self.future(last, n)
         enc = np.concatenate([sq.encode(hist, sq.OBSERVED_NUM, sq.OBSERVED_BOOL, self.meta["stats"]),
                               self.encode_known(hist)], axis=1)
-        cat, sx = self.static(g)
-        inputs = (torch.from_numpy(enc[None]), torch.from_numpy(self.encode_known(fut)[None]),
-                  torch.from_numpy(cat), torch.from_numpy(sx))
+        enc, dec = torch.from_numpy(enc[None]), torch.from_numpy(self.encode_known(fut)[None])
+        qs = []
         with torch.no_grad():                             # ensemble: média dos quantis dos membros
-            q = np.mean([net.forecast(*inputs)[0].numpy() * std + mean for net, mean, std in self.models], axis=0)
+            for net, mean, std, unk in self.models:
+                cat, sx = self.static(g, unk)
+                qs.append(net.forecast(enc, dec, torch.from_numpy(cat), torch.from_numpy(sx))[0].numpy() * std + mean)
+        q = np.mean(qs, axis=0)
         return pd.DataFrame({
             "split": "live", "race_id": "live", "race_label": f"{self.year} {self.circuit}", "circuit": self.circuit,
             "year": self.year, "regulation": regulation(self.year), "driver": last["driver"], "team": last["team"],

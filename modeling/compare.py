@@ -65,7 +65,7 @@ def fmt(v, kind: str) -> str:
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return "—"
     return {"s": f"{v:.3f}", "s2": f"{v:.2f}", "pct": f"{v:.1%}", "signed": f"{v:+.3f}",
-            "skill": f"{v:+.1%}"}[kind].replace(".", ",")
+            "skill": f"{v:+.1%}", "pct0": f"{v:.0%}"}[kind].replace(".", ",")
 
 
 def main() -> None:
@@ -88,6 +88,9 @@ def main() -> None:
                       "by_h": {int(h): float(v) for h, v in ae.groupby(g["h"]).mean().items()},
                       "by_race": {k: float(v) for k, v in ae.groupby(g["race_label"], sort=False).mean().items()},
                       "by_same_stint": {str(k): float(v) for k, v in ae.groupby(g["same_stint"]).mean().items()}}
+            if g["time_p10"].notna().all() and len(g):               # calibração dos quantis por horizonte
+                inside = (g["time_real"] >= g["time_p10"]) & (g["time_real"] <= g["time_p90"])
+                s[run]["coverage_by_h"] = {int(h): float(v) for h, v in inside.groupby(g["h"]).mean().items()}
         out["splits"][split] = s
         out.setdefault("bootstrap", {})[split] = block_bootstrap(data, split, args.runs[-1])
     dest = RUNS / args.run_id
@@ -107,6 +110,20 @@ def main() -> None:
             print(f"| `{run}` | {fmt(o['mae_s'], 's')} | {fmt(o['rmse_s'], 's')} | {fmt(o['bias_s'], 'signed')} | "
                   f"{fmt(m['sum5']['mae_s'], 's2')} | {fmt(o.get('coverage_80'), 'pct')} | "
                   f"{fmt(o.get('pinball_s'), 's')} | {fmt(m['skill'], 'skill') if run != ref else '—'} |")
+        calib = {run: m for run, m in s.items() if "coverage_80" in m["overall"]}
+        if calib:
+            print(f"\nCalibração dos quantis, {name} (ideal: 10% abaixo do p10, 80% dentro, 10% acima do p90):\n")
+            print("| Modelo | Abaixo do p10 | Dentro de p10–p90 | Acima do p90 | Largura p10–p90 (s) | Pinball (s) |")
+            print("|---|---:|---:|---:|---:|---:|")
+            for run, m in calib.items():
+                o = m["overall"]
+                print(f"| `{run}` | {fmt(o['below_p10'], 'pct')} | {fmt(o['coverage_80'], 'pct')} | "
+                      f"{fmt(1 - o['below_p90'], 'pct')} | {fmt(o['width_s'], 's2')} | {fmt(o['pinball_s'], 's')} |")
+            print(f"\nCobertura p10–p90 por horizonte, {name}:\n")
+            print("| Modelo | " + " | ".join(f"h{h}" for h in range(1, 11)) + " |")
+            print("|---|" + "---:|" * 10)
+            for run, m in calib.items():
+                print(f"| `{run}` | " + " | ".join(fmt(m["coverage_by_h"].get(h), "pct0") for h in range(1, 11)) + " |")
         print(f"\nMAE por horizonte, {name} (s):\n")
         print("| Modelo | " + " | ".join(f"h{h}" for h in range(1, 11)) + " |")
         print("|---|" + "---:|" * 10)

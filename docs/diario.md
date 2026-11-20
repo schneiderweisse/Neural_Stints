@@ -4,6 +4,46 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
 ## 20 de novembro de 2026
 
+### Eras de regulamento
+
+- **A pergunta:** a validação e o teste são de 2026, o primeiro ano do regulamento novo. Só 241 das 1.835 sequências de treino são de 2026, de 11 corridas. Como usar as temporadas de 2022–25?
+- **`modeling.eras`:** seis estratégias com a GRU escolhida, 5 sementes cada, escolha pela pinball média na validação.
+  - São 25 treinos novos, 3 em paralelo, ~1 h. O `pooled`, o modelo em uso, vem da bateria de 6/11.
+  - Depois, mais 20 fine-tunings com taxas menores, para ver se o resultado dependia da taxa.
+- **O `modeling.gru` ganhou três opções:** `--train-years` (só as corridas desses anos), `--init` (fine-tuning a partir de outro run) e `--zero-cat` (apaga uma categórica).
+  - As categorias que o run não viu no treino viram `<unk>`, como ao vivo, e a lista vai no `config.json`.
+  - O previsor ao vivo agora aplica a lista de cada membro do ensemble.
+
+| Estratégia | Pinball val., por semente (s) | MAE val., ensemble (s) | MAE teste, ensemble (s) | São Paulo, reprodução (s) |
+|---|---:|---:|---:|---:|
+| Todas as eras, sem embedding de regulamento (`pooled_noreg`) | **0,202** | **0,565** | **0,463** | 1,062 |
+| Só 2022–25 (`pre_2022_25`) | 0,205 | 0,572 | 0,465 | 1,136 |
+| Todas as eras, com embedding de regulamento (`pooled`, em uso) | 0,207 | 0,582 | 0,472 | 1,037 |
+| 2022–25 + fine-tuning em 2026 (`pretrain_finetune`) | 0,213 | 0,603 | 0,487 | 1,085 |
+| Todas as eras + fine-tuning em 2026 (`pooled_finetune`) | 0,224 | 0,638 | 0,496 | 1,028 |
+| Só 2026 (`2026_only`) | 0,357 | 1,011 | 0,592 | **0,954** |
+
+- **Só 2026 não funciona:** com 11 corridas, a rede erra mais que o ingênuo na validação.
+- **2022–25 sozinhas já dão uma rede tão boa quanto a em uso.** O alvo é relativo à volta de referência do quali, que deve absorver a mudança de velocidade entre as eras.
+- **Sem o embedding de regulamento, a rede fica um pouco melhor**, e é a escolhida pela validação.
+  - Ganha 0,017 s na validação e 0,009 s no teste, com os intervalos fora do zero.
+  - Por semente, no teste, a diferença vai de −0,040 a +0,017 s.
+- **O fine-tuning em 2026 piora, em todas as taxas (0,0003, 0,0001 e 0,00003).**
+  - A validação piora desde a primeira época: a rede se ajusta às 11 corridas de treino.
+  - O ponto de partida carrega certo: antes do primeiro passo, a perda é a do run de origem.
+- **São Paulo inverte a ordem:** na reprodução, quanto mais peso em 2026, melhor, e o só 2026 é o melhor de todos. É uma corrida só e atípica: a referência do alvo veio dos treinos livres, por causa do quali molhado. Mas mostra que a vantagem do `pooled_noreg` é pequena e pode mudar de corrida para corrida.
+- **O modelo ao vivo continua o `gru_20261106_ens5`.** A escolha da v1 (GRU ou LSTM, com ou sem regulamento) fica para o congelamento. Detalhes em [resultados.md](resultados.md#eras-de-regulamento).
+
+### Calibração dos quantis
+
+- **A previsão quantílica existe desde a v0:** p10, p50 e p90 com a perda pinball. Faltava medir a calibração de todos os modelos. O `modeling.compare` agora imprime a fração de voltas abaixo do p10, entre p10 e p90 e acima do p90, a largura do intervalo e a cobertura por horizonte.
+- **As redes erram a cobertura por pouco, em direções opostas:** 79% na validação e 87–88% no teste, para um ideal de 80%.
+  - Na validação, 13% das voltas saem abaixo do p10 e 7% acima do p90. É o mesmo sinal do viés positivo. A cobertura cai de 86% em h1 para 75% em h10.
+  - No teste, fica em ~87% em todos os horizontes.
+- **Sem recalibração:** um ajuste feito na validação alargaria os horizontes longos, que no teste já cobrem demais.
+- **O LightGBM tem os intervalos mais estreitos:** cobre 71% na validação e 81% no teste.
+- Tabelas em [resultados.md](resultados.md#calibração-dos-quantis).
+
 ### LSTM × GRU
 
 - **A mesma rede com a célula trocada:** `modeling.gru --cell lstm`. O resto é igual: dados, variáveis, decoder e treino. O estado da LSTM é o par (h, c), e o decoder de cada volta parte dos dois. Por isso o encoder da LSTM anda volta a volta, para guardar o c de cada volta.

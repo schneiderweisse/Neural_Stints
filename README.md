@@ -84,10 +84,16 @@ A comparação LSTM × GRU treina LSTMs em 4 configurações com 5 sementes (3 t
 .venv/Scripts/python -m modeling.cells --workers 3   # -> runs/cells_<data>/report.md e runs/lstm_<data>_ens5/
 ```
 
-A comparação entre modelos usa as mesmas voltas para todos e dá o intervalo de 95% da diferença de MAE para o último run da lista (bootstrap por piloto:corrida); as tabelas estão em [docs/resultados.md](docs/resultados.md#comparação-dos-modelos-na-validação-e-no-teste):
+O experimento das eras de regulamento treina a GRU escolhida com 5 sementes em cada estratégia: só 2026, só 2022–25, todas as eras sem o embedding de regulamento e fine-tunings em 2026 com três taxas (45 treinos, 3 em paralelo, ~1h15). A escolha é pela validação, e a estratégia em uso vem da bateria `sweep_20261106`:
 
 ```bash
-.venv/Scripts/python -m modeling.compare naive_20261106 lmm_20261120 lgbm_20261120 gru_20261106_ens5   # -> runs/compare_<data>/
+.venv/Scripts/python -m modeling.eras --workers 3   # -> runs/eras_<data>/report.md e um ensemble por estratégia
+```
+
+A comparação entre modelos usa as mesmas voltas para todos e dá o intervalo de 95% da diferença de MAE para o último run da lista (bootstrap por piloto:corrida), além da calibração dos quantis; as tabelas estão em [docs/resultados.md](docs/resultados.md#comparação-dos-modelos-na-validação-e-no-teste):
+
+```bash
+.venv/Scripts/python -m modeling.compare naive_20261106 lmm_20261120 lgbm_20261120 lstm_20261120_ens5 gru_20261106_ens5   # -> runs/compare_<data>/
 ```
 
 Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), três processos ficam no ar, cada um no seu terminal, gravando em `data/live/<ano>_<circuito>_<sessão>/`:
@@ -170,7 +176,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 | Data | Atividade | Status |
 |---|---|---|
-| 9 – 15/11 | Compostos C1–C6 por GP (feito em 10/11); modelo linear misto e LightGBM (feitos em 20/11); LSTM × GRU (feito em 20/11); previsão quantílica (pronta desde a v0); experimento das eras de regulamento; avaliação da v0 em Interlagos (feita, com a conferência contra os dados oficiais) | 🔄 |
+| 9 – 15/11 | Compostos C1–C6 por GP (feito em 10/11); modelo linear misto e LightGBM (feitos em 20/11); LSTM × GRU (feito em 20/11); previsão quantílica (pronta desde a v0; calibração de todos os modelos medida em 20/11); experimento das eras de regulamento (feito em 20/11); avaliação da v0 em Interlagos (feita, com a conferência contra os dados oficiais) | ✅ |
 | 16 – 19/11 | Congelar a v1; painel com o simulador de estratégia; ensaio por replay da gravação de Interlagos | ⏳ |
 | Qui 19/11 | Ensaio no TL1 de Las Vegas (21h30) | ⏳ |
 | Sex 20/11 | Ensaios no TL2 (01h00) e TL3 (21h30) | ⏳ |

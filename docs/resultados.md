@@ -69,7 +69,8 @@ Ao vivo, `pace_real` e `time_real` ficam vazios até a volta acontecer e são pr
 |---|---|
 | `run_id`, `model`, `seed` | `gru_20261104_s1`, `gru`, `1` |
 | `hyperparameters` | `{"hidden": 64, "layers": 1, "dropout": 0.1, "lr": 0.001, "batch_sequences": 32, "max_epochs": 60, "patience": 8}` |
-| `eras_strategy` | `pooled` (todas as eras, com embeddings), `2026_only` ou `pretrain_finetune` |
+| `eras_strategy` | `pooled` (todas as eras, com embeddings), `pooled_noreg`, `2026_only`, `pre_2022_25`, `pretrain_finetune` ou `pooled_finetune` ([Eras de regulamento](#eras-de-regulamento)) |
+| `hyperparameters` dos runs das eras | também `train_years`, `init` (run de partida do fine-tuning), `zero_cat` e `unk_categories` (categorias tratadas como `<unk>`, também ao vivo) |
 | `features` | as listas `observed`, `known`, `static_cat` e `static_x` do `dataset_meta.json` |
 | `horizon`, `quantiles` | `10`, `[0.1, 0.5, 0.9]` |
 | `data` | divisão das corridas usada (`splits` do `dataset_meta.json`) |
@@ -161,7 +162,7 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | LSTM: a mesma rede com `--cell lstm`, 5 sementes da configuração escolhida na validação (`modeling.cells`, feita em 20/11) | `lstm_<data>_ens5` | ✅ |
 | Modelo linear misto: composto × idade do pneu, progresso da corrida e temperatura, com intercepto e inclinação no progresso aleatórios por piloto:corrida (`modeling.lmm`, feito em 20/11) | `lmm_<data>` | ✅ |
 | LightGBM com lags do ritmo, um modelo por quantil (`modeling.lgbm`, feito em 20/11) | `lgbm_<data>` | ✅ |
-| Estratégias de eras `2026_only` e `pretrain_finetune` | | v1 |
+| Estratégias de eras: só 2026, só 2022–25, sem o embedding de regulamento e fine-tunings em 2026, 5 sementes cada (`modeling.eras`, feito em 20/11) | `eras_<data>/<estratégia>_ens5` | ✅ |
 | Várias sementes por configuração (bateria `modeling.sweep`) | `sweep_<data>/` | ✅ |
 | Ensemble da GRU: média dos quantis de 5 sementes (`modeling.ensemble`), usado ao vivo e no painel | `gru_<data>_ens5` | ✅ |
 
@@ -214,7 +215,8 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Ingênuo `naive_20261106` | 0,783 | 1,131 | +0,402 | 2,68 | — | — | — | +0,200 (+0,170 a +0,232) |
 | Linear misto `lmm_20261120` | 0,772 | 1,140 | +0,104 | 2,85 | 75,2% | 0,265 | +1,4% | +0,190 (+0,149 a +0,229) |
 | LightGBM `lgbm_20261120` | 0,597 | 0,889 | +0,089 | 2,00 | 71,4% | 0,204 | +23,7% | +0,015 (+0,002 a +0,028) |
-| GRU `gru_20261106_ens5` | **0,582** | **0,863** | +0,089 | **1,92** | 79,3% | **0,198** | **+25,6%** | — |
+| LSTM `lstm_20261120_ens5` | **0,569** | **0,853** | +0,063 | **1,84** | 78,6% | **0,195** | **+27,3%** | −0,013 (−0,023 a −0,004) |
+| GRU `gru_20261106_ens5` | 0,582 | 0,863 | +0,089 | 1,92 | 79,3% | 0,198 | +25,6% | — |
 
 **Teste** (Singapura, Austin, México; 28.220 voltas em comum)
 
@@ -223,7 +225,10 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Ingênuo `naive_20261106` | 0,655 | 0,933 | +0,195 | 2,07 | — | — | — | +0,183 (+0,159 a +0,207) |
 | Linear misto `lmm_20261120` | 0,540 | 0,783 | −0,062 | 1,88 | 86,9% | 0,184 | +17,6% | +0,068 (+0,048 a +0,088) |
 | LightGBM `lgbm_20261120` | 0,498 | 0,729 | +0,030 | 1,63 | 81,2% | 0,165 | +23,9% | +0,026 (+0,015 a +0,038) |
-| GRU `gru_20261106_ens5` | **0,472** | **0,700** | +0,012 | **1,51** | 87,7% | **0,159** | **+28,0%** | — |
+| LSTM `lstm_20261120_ens5` | **0,457** | **0,689** | −0,009 | **1,46** | 87,4% | **0,157** | **+30,2%** | −0,015 (−0,022 a −0,008) |
+| GRU `gru_20261106_ens5` | 0,472 | 0,700 | +0,012 | 1,51 | 87,7% | 0,159 | +28,0% | — |
+
+As duas redes são ensembles de 5 sementes; a comparação entre as células, semente a semente, está em [LSTM × GRU](#lstm--gru).
 
 MAE por horizonte (s):
 
@@ -232,10 +237,12 @@ MAE por horizonte (s):
 | Ingênuo | validação | 0,53 | 0,62 | 0,69 | 0,75 | 0,80 | 0,84 | 0,87 | 0,90 | 0,94 | 0,98 |
 | Linear misto | validação | 0,62 | 0,66 | 0,70 | 0,74 | 0,77 | 0,80 | 0,83 | 0,86 | 0,89 | 0,92 |
 | LightGBM | validação | 0,44 | 0,50 | 0,54 | 0,57 | 0,60 | 0,62 | 0,65 | 0,67 | 0,70 | 0,72 |
+| LSTM | validação | 0,43 | 0,48 | 0,52 | 0,55 | 0,58 | 0,60 | 0,62 | 0,64 | 0,65 | 0,67 |
 | GRU | validação | 0,43 | 0,49 | 0,53 | 0,56 | 0,59 | 0,61 | 0,63 | 0,66 | 0,68 | 0,70 |
 | Ingênuo | teste | 0,47 | 0,54 | 0,59 | 0,63 | 0,66 | 0,68 | 0,71 | 0,74 | 0,77 | 0,80 |
 | Linear misto | teste | 0,45 | 0,49 | 0,51 | 0,53 | 0,54 | 0,55 | 0,57 | 0,59 | 0,59 | 0,60 |
 | LightGBM | teste | 0,40 | 0,44 | 0,47 | 0,49 | 0,51 | 0,52 | 0,54 | 0,55 | 0,55 | 0,55 |
+| LSTM | teste | 0,38 | 0,42 | 0,44 | 0,45 | 0,46 | 0,47 | 0,47 | 0,49 | 0,49 | 0,50 |
 | GRU | teste | 0,38 | 0,42 | 0,45 | 0,47 | 0,48 | 0,49 | 0,50 | 0,51 | 0,52 | 0,53 |
 
 MAE por corrida e por tarefa (s; tarefa A: mesmo stint da volta `t`; tarefa B: depois de uma parada):
@@ -245,17 +252,55 @@ MAE por corrida e por tarefa (s; tarefa A: mesmo stint da volta `t`; tarefa B: d
 | Ingênuo | 0,823 | 0,568 | 0,988 | 0,723 | 0,763 | 0,691 | 0,521 | 0,706 | 1,340 | 0,553 | 1,315 |
 | Linear misto | 0,701 | 0,552 | 1,064 | 0,774 | 0,677 | 0,492 | 0,450 | 0,718 | 1,167 | 0,521 | 0,662 |
 | LightGBM | 0,541 | **0,456** | 0,825 | 0,560 | 0,657 | 0,468 | 0,372 | 0,569 | 0,802 | 0,487 | 0,572 |
-| GRU | **0,507** | 0,466 | **0,821** | **0,528** | **0,597** | **0,457** | **0,364** | **0,557** | **0,765** | **0,461** | **0,544** |
+| LSTM | 0,519 | 0,462 | **0,794** | **0,485** | **0,573** | **0,452** | **0,349** | **0,543** | **0,762** | **0,442** | 0,553 |
+| GRU | **0,507** | 0,466 | 0,821 | 0,528 | 0,597 | 0,457 | 0,364 | 0,557 | 0,765 | 0,461 | **0,544** |
 
 Leitura:
-- **A GRU é a melhor em quase tudo, mas o LightGBM fica perto:** 0,015 s atrás na validação e 0,026 s no teste. A diferença é pequena e consistente: o intervalo não cruza o zero nas duas divisões, e o LightGBM só ganha em Monza.
+- **As redes recorrentes são as melhores, e o LightGBM fica perto.**
+  - O ensemble da LSTM ganha da GRU por 0,013 s na validação e 0,015 s no teste.
+  - A GRU ganha do LightGBM por 0,015 s e 0,026 s.
+  - Os intervalos não cruzam o zero. O LightGBM só ganha em Monza; a GRU, em Zandvoort e depois das paradas no teste.
 - **O linear misto ganha do ingênuo no teste (+17,6%) e quase empata na validação (+1,4%).**
   - Ele perde na volta seguinte (h1): o seu nível de piloto:corrida é a média de todas as voltas limpas até `t`, e não o ritmo das últimas voltas.
   - Ganha nos horizontes longos e depois da parada (tarefa B), porque sabe o efeito do pneu novo e do composto.
-- **Intervalos:** os três modelos ficam perto de 80% de cobertura, com desvios diferentes.
-  - O LightGBM é estreito demais na validação (71%) e deixa 19% das voltas abaixo do p10.
-  - O linear misto e a GRU são um pouco largos no teste (87–88%).
-  - A pinball, que junta largura e cobertura, segue a ordem do MAE.
+
+### Calibração dos quantis
+
+A previsão quantílica existe desde a v0: a rede sai com p10, p50 e p90, treinada com a perda pinball, e p10 ≤ p50 ≤ p90 por construção. Se os quantis estão certos, 10% das voltas reais ficam abaixo do p10, 80% entre p10 e p90 e 10% acima do p90.
+
+| Modelo | Divisão | Abaixo do p10 | Dentro de p10–p90 | Acima do p90 | Largura p10–p90 (s) | Pinball (s) |
+|---|---|---:|---:|---:|---:|---:|
+| Linear misto | validação | 13,8% | 75,2% | 11,0% | 2,03 | 0,265 |
+| LightGBM | validação | 18,9% | 71,4% | 9,6% | 1,52 | 0,204 |
+| LSTM | validação | 13,8% | 78,6% | 7,6% | 1,76 | **0,195** |
+| GRU | validação | 13,3% | 79,3% | 7,3% | 1,84 | 0,198 |
+| Linear misto | teste | 4,6% | 86,9% | 8,6% | 2,03 | 0,184 |
+| LightGBM | teste | 10,8% | 81,2% | 8,1% | 1,68 | 0,165 |
+| LSTM | teste | 5,8% | 87,4% | 6,8% | 1,77 | **0,157** |
+| GRU | teste | 5,4% | 87,7% | 6,8% | 1,80 | 0,159 |
+
+Cobertura p10–p90 por horizonte:
+
+| Modelo | Divisão | h1 | h2 | h3 | h4 | h5 | h6 | h7 | h8 | h9 | h10 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Linear misto | validação | 82% | 80% | 78% | 77% | 76% | 74% | 73% | 71% | 70% | 68% |
+| LightGBM | validação | 78% | 75% | 73% | 71% | 71% | 70% | 70% | 69% | 68% | 66% |
+| LSTM | validação | 87% | 83% | 80% | 79% | 78% | 77% | 77% | 76% | 75% | 75% |
+| GRU | validação | 86% | 83% | 81% | 80% | 79% | 78% | 77% | 77% | 76% | 75% |
+| Linear misto | teste | 91% | 89% | 89% | 88% | 87% | 86% | 85% | 85% | 84% | 84% |
+| LightGBM | teste | 83% | 82% | 81% | 82% | 81% | 81% | 81% | 81% | 80% | 80% |
+| LSTM | teste | 90% | 88% | 87% | 86% | 87% | 87% | 87% | 87% | 87% | 87% |
+| GRU | teste | 90% | 88% | 88% | 87% | 88% | 88% | 87% | 87% | 87% | 87% |
+
+Leitura:
+- **As redes erram a cobertura por pouco, e em direções opostas nas duas divisões:** 79% na validação e 87–88% no teste. A pinball das redes é a menor nas duas.
+- **A validação tem o lado de baixo curto:**
+  - 13% das voltas saem mais rápidas que o p10 e só 7% mais lentas que o p90;
+  - é o mesmo sinal do viés positivo (+0,06 a +0,09 s): nessas corridas o ritmo melhorou mais do que a rede esperava;
+  - a cobertura cai com o horizonte, de 86% em h1 para 75% em h10.
+- **No teste, a cobertura fica em ~87% em todos os horizontes:** os intervalos são um pouco largos.
+- **Sem recalibração:** uma correção ajustada na validação alargaria os horizontes longos, que no teste já cobrem 87%. Fica a calibração do treino, que erra por até 8 pontos.
+- **O LightGBM tem os intervalos mais estreitos.** Ele acerta a cobertura no teste (81%), mas não na validação (71%), em que 19% das voltas ficam abaixo do p10.
 
 ### Modelo linear misto (`modeling.lmm`)
 
@@ -363,6 +408,101 @@ Leitura:
   - A média das sementes ajuda mais a LSTM: ganha 0,037 s sobre a semente média na validação, contra 0,028 s da GRU. As sementes dela variam mais entre si.
   - O bootstrap reamostra pilotos, não sementes. Com outro sorteio de 5 sementes, a diferença pode mudar de tamanho.
 - **Custo:** a LSTM treina ~60% mais devagar por época e para algumas épocas depois.
+
+## Eras de regulamento
+
+A validação e o teste são corridas de 2026, o primeiro ano do regulamento novo. No treino, 1.594 sequências piloto:corrida são de 2022–25 e só 241 de 2026, de 11 corridas. `modeling.eras` mede como usar as temporadas antigas. Usa a GRU escolhida (estado 32, dropout 0,1, taxa 0,001), 5 sementes por estratégia e escolha pela média da pinball na validação. Relatório completo em `runs/eras_20261120/report.md`.
+
+- **Estratégias:**
+  - `pooled`: todas as eras juntas, com o embedding de regulamento. É o modelo em uso, da bateria `sweep_20261106`;
+  - `pooled_noreg`: todas as eras, com o regulamento sempre em `<unk>`. Mede se o embedding ajuda;
+  - `2026_only`: só as 11 corridas de 2026 do treino;
+  - `pre_2022_25`: só 2022–25, sem nenhuma corrida de 2026. Mede a transferência direta para a era nova;
+  - `pretrain_finetune`: parte do `pre_2022_25` da mesma semente e continua só em 2026, com taxa 0,0003;
+  - `pooled_finetune`: parte do `pooled` da mesma semente e continua só em 2026.
+- **Categorias que o run não viu no treino viram `<unk>`, como ao vivo.**
+  - No `pre_2022_25` são as 11 equipes-ano de 2026, o regulamento de 2026 e um piloto estreante. No `2026_only`, 14 circuitos, 10 pilotos e as equipes-ano de 2022–25.
+  - Sem isso, essas categorias entrariam com o embedding aleatório do início. O `<unk>` é treinado pelo dropout de categorias, que apaga 10% delas no treino.
+  - A lista vai no `config.json` (`unk_categories`), e o previsor ao vivo aplica a de cada membro do ensemble.
+- **Com 241 sequências, cada época tem só 8 lotes.** Por isso, no `2026_only` e nos fine-tunings, a paciência sobe para 20 épocas e o limite para 300.
+
+**Validação: a escolha** (média ± desvio entre 5 sementes)
+
+| Estratégia | Sequências de treino | Pinball validação (s) | MAE validação (s) | Cobertura validação | Melhor época |
+|---|---:|---|---|---|---:|
+| `pooled_noreg`: todas as eras, sem embedding de regulamento | 1.835 | **0,202 ± 0,005** (escolhida) | **0,588 ± 0,009** | 75,9% ± 3,0 | 18,6 |
+| `pre_2022_25`: só 2022–25 | 1.594 | 0,205 ± 0,008 | 0,597 ± 0,019 | 74,6% ± 2,3 | 22,4 |
+| `pooled`: todas as eras, com embedding de regulamento (em uso) | 1.835 | 0,207 ± 0,007 | 0,610 ± 0,022 | 77,4% ± 2,7 | 16,0 |
+| `pretrain_finetune`: 2022–25 + fine-tuning em 2026 | 241 | 0,213 ± 0,010 | 0,630 ± 0,032 | 75,7% ± 2,0 | 1,0 |
+| `pooled_finetune`: todas as eras + fine-tuning em 2026 | 241 | 0,224 ± 0,015 | 0,664 ± 0,053 | 72,5% ± 3,4 | 1,0 |
+| `2026_only`: só 2026 | 241 | 0,357 ± 0,033 | 1,085 ± 0,153 | 64,2% ± 12,5 | 23,6 |
+
+Nos fine-tunings, as sequências e a melhor época são as da etapa em 2026.
+
+**Teste, por semente** (Singapura, Austin, México)
+
+| Estratégia | MAE teste (s) | Cobertura teste | Pinball teste (s) | Depois de parada (s) |
+|---|---|---|---|---|
+| `pooled_noreg` | **0,485 ± 0,013** | 84,0% ± 2,0 | **0,163 ± 0,004** | **0,547 ± 0,024** |
+| `pre_2022_25` | 0,490 ± 0,030 | 82,6% ± 2,2 | 0,164 ± 0,008 | 0,553 ± 0,026 |
+| `pooled` (em uso) | 0,496 ± 0,014 | 85,5% ± 1,8 | 0,166 ± 0,004 | 0,565 ± 0,014 |
+| `pretrain_finetune` | 0,513 ± 0,027 | 83,3% ± 2,3 | 0,170 ± 0,007 | 0,574 ± 0,027 |
+| `pooled_finetune` | 0,516 ± 0,020 | 83,3% ± 1,1 | 0,170 ± 0,006 | 0,594 ± 0,024 |
+| `2026_only` | 0,672 ± 0,143 | 88,2% ± 4,3 | 0,228 ± 0,051 | 0,755 ± 0,202 |
+
+**Ensembles de 5 sementes** (média dos quantis), nas mesmas voltas. O bootstrap por piloto:corrida de `modeling.compare` dá a diferença para o modelo em uso. A última coluna roda o previsor ao vivo sobre o histórico final de São Paulo, nas 7.661 voltas limpas previstas por todos.
+
+| Estratégia | MAE val. (s) | MAE − em uso, val. (IC 95%) | MAE teste (s) | MAE − em uso, teste (IC 95%) | Cobertura val. / teste | São Paulo: MAE (s) e cobertura |
+|---|---:|---:|---:|---:|---:|---:|
+| `pooled_noreg` | **0,565** | −0,017 (−0,024 a −0,010) | **0,463** | −0,009 (−0,014 a −0,005) | 77,8% / 86,3% | 1,062 · 50,3% |
+| `pre_2022_25` | 0,572 | −0,011 (−0,021 a −0,000) | 0,465 | −0,007 (−0,011 a −0,002) | 76,7% / 84,8% | 1,136 · 41,3% |
+| `pooled` `gru_20261106_ens5` (em uso) | 0,582 | — | 0,472 | — | 79,3% / 87,7% | 1,037 · 57,8% |
+| `pretrain_finetune` | 0,603 | +0,021 (+0,015 a +0,027) | 0,487 | +0,015 (+0,007 a +0,023) | 78,3% / 85,9% | 1,085 · 52,4% |
+| `pooled_finetune` | 0,638 | +0,056 (+0,045 a +0,066) | 0,496 | +0,024 (+0,016 a +0,032) | 75,0% / 85,5% | 1,028 · 59,1% |
+| `2026_only` | 1,011 | +0,428 (+0,370 a +0,494) | 0,592 | +0,120 (+0,088 a +0,153) | 71,3% / 92,6% | **0,954 · 75,1%** |
+
+MAE por corrida dos ensembles (s):
+
+| Estratégia | Zandvoort | Monza | Madring | Baku | Singapura | Austin | México |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `pooled_noreg` | **0,505** | 0,464 | **0,800** | 0,476 | **0,579** | 0,460 | **0,353** |
+| `pre_2022_25` | 0,511 | **0,463** | 0,826 | **0,465** | 0,599 | **0,446** | **0,353** |
+| `pooled` (em uso) | 0,507 | 0,466 | 0,821 | 0,528 | 0,597 | 0,457 | 0,364 |
+| `pretrain_finetune` | 0,514 | 0,478 | 0,861 | 0,557 | 0,637 | 0,459 | 0,366 |
+| `pooled_finetune` | 0,510 | 0,518 | 0,899 | 0,637 | 0,647 | 0,455 | 0,385 |
+| `2026_only` | 0,753 | 1,173 | 1,056 | 1,136 | 0,685 | 0,519 | 0,564 |
+
+**Fine-tuning com taxas menores.** Os dois fine-tunings rodaram também com taxas de 0,0001 e 0,00003, 5 sementes cada. Cada linha parte dos mesmos 5 runs, e "sem fine-tuning" é o próprio ponto de partida. A melhor época é a do fine-tuning: o treino começa na época 1 e não avalia o ponto de partida.
+
+| Ponto de partida | Taxa do fine-tuning | Pinball validação (s) | MAE validação (s) | MAE teste (s) | Melhor época |
+|---|---|---|---|---|---:|
+| `pre_2022_25` | sem fine-tuning | **0,205 ± 0,008** | **0,597 ± 0,019** | **0,490 ± 0,030** | — |
+| | 0,0003 | 0,213 ± 0,010 | 0,630 ± 0,032 | 0,513 ± 0,027 | 1,0 |
+| | 0,0001 | 0,212 ± 0,009 | 0,624 ± 0,033 | 0,521 ± 0,034 | 2,4 |
+| | 0,00003 | 0,213 ± 0,010 | 0,626 ± 0,034 | 0,523 ± 0,032 | 7,4 |
+| `pooled` (em uso) | sem fine-tuning | **0,207 ± 0,007** | **0,610 ± 0,022** | **0,496 ± 0,014** | — |
+| | 0,0003 | 0,224 ± 0,015 | 0,664 ± 0,053 | 0,516 ± 0,020 | 1,0 |
+| | 0,0001 | 0,219 ± 0,008 | 0,650 ± 0,031 | 0,514 ± 0,015 | 2,0 |
+| | 0,00003 | 0,212 ± 0,006 | 0,626 ± 0,021 | 0,505 ± 0,011 | 1,0 |
+
+Leitura:
+- **Treinar só com 2026 não funciona.** Com 11 corridas, a rede erra mais que o ingênuo na validação: 1,09 s de MAE contra 0,78 s. As sementes variam muito (0,95 a 1,31 s), e duas param nas épocas 4 e 5.
+- **2022–25 sozinhas já dão uma rede tão boa quanto a em uso.**
+  - Sem nenhuma corrida de 2026, a pinball de validação é 0,205, contra 0,207 da em uso. O ensemble ganha por 0,011 s na validação (IC até −0,000) e por 0,007 s no teste.
+  - O alvo é o ritmo relativo à volta de referência do quali do mesmo fim de semana. Provavelmente é ela que absorve a mudança de velocidade entre as eras; o desgaste do pneu e o efeito do combustível se parecem nos dois regulamentos.
+- **O embedding de regulamento não ajuda, e sem ele a rede fica um pouco melhor.** `pooled_noreg` é a escolhida pela validação.
+  - Pinball 0,202 contra 0,207, melhor em 4 das 5 sementes. O ensemble ganha por 0,017 s na validação e 0,009 s no teste, com os intervalos fora do zero.
+  - Por semente, no teste, a diferença vai de −0,040 a +0,017 s. O bootstrap reamostra pilotos, não sementes.
+  - Uma leitura possível: com o embedding, as 241 sequências de 2026 formam um grupo à parte, e a rede se ajusta a elas. Sem ele, entram como mais dados do mesmo problema.
+- **O fine-tuning em 2026 piora a rede, em todas as taxas testadas.**
+  - Em geral, a perda de validação sobe desde a primeira época: a rede se ajusta às 11 corridas de treino e perde nas 4 de validação. Na média das sementes, nenhum fine-tuning volta ao nível do ponto de partida.
+  - O ponto de partida carrega certo: antes do primeiro passo, a perda de validação do `pooled` é a mesma do run de origem.
+  - No `pretrain_finetune` há um custo a mais. As equipes-ano e o regulamento de 2026, que eram `<unk>` no ponto de partida, passam a ter embeddings próprios, que começam aleatórios. Só essa troca, sem nenhum passo, já piora a perda de validação em 3 das 5 sementes, até 25% numa delas.
+- **São Paulo inverte a ordem: lá, quanto mais peso em 2026, melhor.**
+  - Na reprodução com o previsor ao vivo, o só 2026 é o melhor (0,954 s, cobertura de 75%). Depois vêm o fine-tuning do `pooled` (1,028 s) e o modelo em uso (1,037 s). O sem regulamento fica em 1,062 s e o só 2022–25 em 1,136 s.
+  - É uma corrida só, fora do protocolo e atípica. Com o quali molhado, a referência do alvo veio dos treinos livres, e as voltas são as do fluxo ao vivo.
+  - Mesmo assim, mostra que a vantagem do `pooled_noreg` é pequena e que a ordem pode mudar de uma corrida para outra.
+- **O previsor ao vivo continua com `gru_20261106_ens5`.** O ensemble sem regulamento está em `runs/eras_20261120/pooled_noreg_ens5` e roda com `--run eras_20261120/pooled_noreg_ens5`. A escolha do modelo da v1 fica para o congelamento.
 
 ## Duelos
 

@@ -17,9 +17,18 @@ Com `--cell lstm`, as duas GRUs viram LSTMs e o resto não muda. O estado da LST
 decoder de cada volta t parte dos dois; como a nn.LSTM só devolve o h de cada passo, o encoder da LSTM
 anda volta a volta para guardar também o c. O c inicial sai do contexto, como o h.
 
+Eras de regulamento (modeling.eras): `--train-years` restringe as corridas de treino a alguns anos,
+`--init` parte dos pesos de outro run (fine-tuning) e `--zero-cat regulation` apaga o embedding de
+regulamento (todas as voltas recebem o índice <unk>). As categorias que não aparecem nas corridas de
+treino do run (nem nas do run de origem, no fine-tuning) também viram <unk>, como ao vivo, em vez de
+ficarem com o embedding aleatório do início; a lista vai para o config.json (`unk_categories`).
+A normalização do alvo é sempre a do dataset, para o fine-tuning continuar na mesma escala do
+pré-treino.
+
 Uso, a partir da pasta Neural_Stints:
     .venv/Scripts/python -m modeling.gru [--hidden 64] [--seed 1]
     .venv/Scripts/python -m modeling.gru --cell lstm --hidden 32 --seed 1     # -> runs/lstm_<data>_s1/
+    .venv/Scripts/python -m modeling.gru --train-years 2026 --eras-strategy 2026_only
 """
 import argparse
 import json
@@ -132,8 +141,9 @@ def pinball(pred, y, mask):
 class Batches:
     """Monta lotes de sequências com padding no fim (o encoder é causal, então o padding não vaza)."""
 
-    def __init__(self, d, y_mean, y_std, horizon, min_context):
+    def __init__(self, d, y_mean, y_std, horizon, min_context, unk=None):
         self.d, self.H, self.min_context = d, horizon, min_context
+        self.unk = unk or {}                    # coluna de static_cat -> índices que viram <unk>
         self.y_z = ((d["y"] - y_mean) / y_std).astype(np.float32)
         self.n = np.diff(d["offsets"])
 
@@ -154,6 +164,8 @@ class Batches:
             known[i, :n] = d["x_known"][lo:hi]
             y[i, :n], ok[i, :n], ref[i, :n] = self.y_z[lo:hi], d["y_mask"][lo:hi], d["ref_lap"][lo:hi]
         cat = d["static_cat"][seqs].copy()
+        for col, idx in self.unk.items():
+            cat[np.isin(cat[:, col], idx), col] = 0
         if cat_dropout and rng is not None:          # ensina o embedding <unk> (circuitos e pilotos novos)
             cat[rng.random(cat.shape) < cat_dropout] = 0
         # alvo e máscara alinhados com a saída do modelo: [:, t-1, h-1] -> volta t+h
@@ -198,6 +210,19 @@ def predict(model, batches, seqs, H, y_mean, y_std, device, batch=64):
     return out
 
 
+def unk_categories(d, meta, years, zero_cat) -> dict[str, list[str]]:
+    """Categorias que viram <unk>: as ausentes das corridas de treino desses anos e as colunas apagadas."""
+    yrs = np.array([int(str(s)[:4]) for s in d["seq_id"]])
+    train = (d["seq_split"] == "train") & (np.isin(yrs, list(years)) if years else True)
+    out = {}
+    for i, c in enumerate(meta["static_cat"]):
+        seen = set() if c in zero_cat else set(d["static_cat"][train, i].tolist())
+        names = [v for j, v in enumerate(meta["vocabs"][c]) if j and j not in seen]
+        if names:
+            out[c] = names
+    return out
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
@@ -217,6 +242,10 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=RUNS, help="pasta onde o run é gravado")
     ap.add_argument("--run-id", help="padrão: <célula>_<data>_s<semente>")
     ap.add_argument("--reference", type=Path, help="pasta do run do ingênuo para o skill (padrão: o mais recente)")
+    ap.add_argument("--train-years", type=int, nargs="*", help="só as corridas de treino desses anos (padrão: todas)")
+    ap.add_argument("--init", type=Path, help="pasta de um run cujos pesos são o ponto de partida (fine-tuning)")
+    ap.add_argument("--zero-cat", nargs="*", default=[], help="categóricas estáticas apagadas (ex.: regulation)")
+    ap.add_argument("--eras-strategy", default="pooled", help="rótulo da estratégia de eras no config.json")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
@@ -228,13 +257,28 @@ def main() -> None:
     H = meta["horizon"]
     train_rows = np.repeat(d["seq_split"] == "train", np.diff(d["offsets"])) & d["y_mask"]
     y_mean, y_std = float(d["y"][train_rows].mean()), float(d["y"][train_rows].std())
-    batches = Batches(d, y_mean, y_std, H, meta["min_context"])
+    years = None
+    if args.train_years:                      # anos vistos: os deste treino e os do run de origem
+        years = set(args.train_years)
+        if args.init:
+            prev = json.loads((args.init / "config.json").read_text(encoding="utf-8"))["hyperparameters"]
+            years = None if not prev.get("train_years") else years | set(prev["train_years"])
+    unk = unk_categories(d, meta, years, args.zero_cat)
+    batches = Batches(d, y_mean, y_std, H, meta["min_context"],
+                      {meta["static_cat"].index(c): [meta["vocabs"][c].index(v) for v in names]
+                       for c, names in unk.items()})
     seqs = {s: np.where(d["seq_split"] == s)[0] for s in ("train", "val", "test")}
+    if args.train_years:
+        years = np.array([int(str(s)[:4]) for s in d["seq_id"]])
+        seqs["train"] = seqs["train"][np.isin(years[seqs["train"]], args.train_years)]
 
     vocab_sizes = [len(meta["vocabs"][c]) for c in meta["static_cat"]]
     emb_dims = [EMB_DIMS[c] for c in meta["static_cat"]]
     model = Seq2SeqGRU(d["x_obs"].shape[1], d["x_known"].shape[1], vocab_sizes, emb_dims,
                        d["static_x"].shape[1], args.hidden, args.context, args.dropout, args.cell).to(device)
+    if args.init:
+        init = torch.load(args.init / "model.pt", weights_only=False)
+        model.load_state_dict(init["state_dict"])
     n_params = sum(p.numel() for p in model.parameters())
     opt = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     print(f"{run_id}: {n_params:,} parâmetros, {len(seqs['train'])} sequências de treino, dispositivo {device}")
@@ -288,10 +332,12 @@ def main() -> None:
 
     config = {
         "run_id": run_id, "model": args.cell, "seed": args.seed,
-        "hyperparameters": {k: v for k, v in vars(args).items() if k not in ("seed", "dataset", "out", "run_id", "reference")}
-                           | {"emb_dims": EMB_DIMS},
+        "hyperparameters": {k: v for k, v in vars(args).items()
+                            if k not in ("seed", "dataset", "out", "run_id", "reference", "init", "eras_strategy")}
+                           | {"emb_dims": EMB_DIMS, "init": args.init.as_posix() if args.init else None,
+                              "n_train_sequences": int(len(seqs["train"])), "unk_categories": unk},
         "dataset": args.dataset,
-        "eras_strategy": "pooled", "features": {k: meta[k] for k in ("observed", "known", "static_cat", "static_x")},
+        "eras_strategy": args.eras_strategy, "features": {k: meta[k] for k in ("observed", "known", "static_cat", "static_x")},
         "horizon": H, "quantiles": list(QUANTILES), "data": meta["splits"],
         "target_normalization": {"mean": y_mean, "std": y_std},
         "n_params": n_params, "train_seconds": round(train_seconds, 1), "best_epoch": best_epoch,

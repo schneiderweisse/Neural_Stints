@@ -28,8 +28,8 @@ import torch
 from torch import nn
 
 from modeling.frame import target_frame
-from modeling.results import (RUNS, compute_metrics, finish_predictions, git_commit, now_utc, print_summary,
-                              write_atomic, write_run)
+from modeling.results import (RUNS, compute_metrics, finish_predictions, git_commit, latest_run, now_utc,
+                              print_summary, write_atomic, write_run)
 
 QUANTILES = (0.1, 0.5, 0.9)
 EMB_DIMS = {"circuit": 4, "driver": 4, "team_year": 4, "regulation": 2}
@@ -163,11 +163,6 @@ def predict(model, batches, seqs, H, y_mean, y_std, device, batch=64):
             for i, s in enumerate(chunk):
                 out[int(s)] = pred[i, : batches.n[s] - 1]
     return out
-
-
-def latest_run(prefix: str) -> Path | None:
-    runs = sorted(RUNS.glob(f"{prefix}_*"), key=lambda p: p.stat().st_mtime)
-    return runs[-1] if runs else None
 
 
 def main() -> None:

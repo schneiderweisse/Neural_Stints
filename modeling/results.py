@@ -29,6 +29,12 @@ def now_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def latest_run(prefix: str) -> Path | None:
+    """O run mais recente com esse prefixo (gru, naive, lmm...) em runs/."""
+    runs = sorted(RUNS.glob(f"{prefix}_*"), key=lambda p: p.stat().st_mtime)
+    return runs[-1] if runs else None
+
+
 def finish_predictions(frame: pd.DataFrame, run_id: str, model: str) -> pd.DataFrame:
     """Completa a tabela de alvos com as previsões em segundos e põe as colunas na ordem padrão."""
     p = frame.copy()

@@ -4,5 +4,7 @@ pyarrow>=15
 # No Windows, o torch do PyPI é a versão para CPU. Para forçar a versão CPU em outro sistema:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 torch>=2.3
+statsmodels>=0.14       # modelo linear misto (modeling.lmm)
+lightgbm>=4.0           # baseline de árvores (modeling.lgbm)
 plotly>=5.20
 streamlit>=1.40

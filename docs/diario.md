@@ -2,6 +2,42 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 20 de novembro de 2026
+
+### Modelo linear misto e LightGBM
+
+- **Os dois baselines do plano**, no formato padrão (`runs/lmm_20261120/`, `runs/lgbm_20261120/`), comparados com o ingênuo e a GRU nas mesmas voltas por um script novo, `modeling.compare`. Tabelas completas em [resultados.md](resultados.md#comparação-dos-modelos-na-validação-e-no-teste).
+
+| Modelo | MAE validação (s) | MAE teste (s) | Skill vs. ingênuo (val. / teste) | Cobertura 80% (val. / teste) |
+|---|---:|---:|---:|---:|
+| Ingênuo | 0,783 | 0,655 | — | — |
+| Linear misto | 0,772 | 0,540 | +1,4% / +17,6% | 75% / 87% |
+| LightGBM | 0,597 | 0,498 | +23,7% / +23,9% | 71% / 81% |
+| GRU (ensemble de 5) | **0,582** | **0,472** | **+25,6% / +28,0%** | 79% / 88% |
+
+- **A GRU continua na frente, mas o LightGBM chega perto.** A diferença é de 0,015 s na validação (IC 95% de 0,002 a 0,028) e 0,026 s no teste (0,015 a 0,038), num bootstrap por piloto:corrida. O LightGBM só ganha da GRU em Monza.
+- **Modelo linear misto** (`modeling.lmm`, statsmodels):
+  - **Fórmula:** ritmo em função de composto × idade do pneu, progresso da corrida (combustível) e temperatura da pista, mais um intercepto e uma inclinação no progresso aleatórios por piloto:corrida.
+  - **Ao vivo,** o efeito de cada piloto é o BLUP com as voltas limpas até a volta atual, em forma fechada. Confere com o do statsmodels até 4·10⁻¹².
+  - **O que ele diz:**
+    - o macio degrada 0,061 s por volta, 36% mais que o médio e o duro (0,045 s);
+    - do começo ao fim da corrida, a volta fica 3,3 s mais rápida (combustível e pista);
+    - cada °C de pista custa 0,022 s.
+  - **A parte aleatória foi escolhida na validação.** O intercepto sozinho, o do plano, dava 0,799 s. Com a inclinação no progresso, 0,766 s. A inclinação na idade do pneu piorou (0,858 s): estimada com poucas voltas de um stint, ela extrapola mal.
+  - **Onde ele perde:** na volta seguinte (h1) perde até do ingênuo, porque o nível do piloto é a média da corrida até ali, não o ritmo recente. Ganha nos horizontes longos e depois das paradas.
+- **LightGBM** (`modeling.lgbm`):
+  - **Previsão direta** com o horizonte como variável e um modelo por quantil.
+  - **Alvo:** a mudança de ritmo em relação à média das 3 últimas voltas limpas.
+  - **37 variáveis:** lags e médias do ritmo limpo, a inclinação do stint, o estado na volta atual e as mesmas variáveis conhecidas do futuro que a GRU recebe (composto, idade do pneu, paradas até a volta prevista).
+  - **Treino:** 782 mil linhas; o número de árvores é escolhido por early stopping na validação. Treina em ~2 min.
+  - **Mais importantes:** circuito, inclinação do stint e mesmo stint.
+  - **Ablação sem o circuito:** piora a validação (0,626 s) e melhora um pouco o teste (0,489 s). Pela validação, o circuito ficou.
+- **Achado no caminho:** o `race_laps.parquet` foi refeito em 10/11 (compostos C1–C6). Nesse meio-tempo, a fonte completou a volta 1 e três voltas finais do México 2026 (BOT, LIN, STR), que o `dataset.npz` de 06/11 não tem.
+  - O `modeling/frame.py` agora casa as voltas pelo par (sequência, volta), em vez de exigir arquivos idênticos.
+  - Todos os modelos são avaliados exatamente nas voltas da GRU. As voltas limpas batem uma a uma.
+  - O ingênuo, refeito, reproduz o run de 06/11.
+- **Instalados** statsmodels 0.15 e LightGBM 4.7 (em `requirements.txt`).
+
 ## 12 de novembro de 2026
 
 ### Duelos: quando um carro vai chegar no outro

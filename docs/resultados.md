@@ -159,7 +159,8 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Ingênuo: média do ritmo das últimas 3 voltas limpas até a volta `t` (critério `clean_live`), repetida em todos os horizontes; sem intervalo | `naive_<data>` | ✅ |
 | GRU encoder–decoder, saída quantílica, todas as eras com embeddings (`pooled`), 1 semente | `gru_<data>_s1` | ✅ |
 | LSTM | | v1 |
-| Modelo linear misto e LightGBM | | v1 |
+| Modelo linear misto: composto × idade do pneu, progresso da corrida e temperatura, com intercepto e inclinação no progresso aleatórios por piloto:corrida (`modeling.lmm`, feito em 20/11) | `lmm_<data>` | ✅ |
+| LightGBM com lags do ritmo, um modelo por quantil (`modeling.lgbm`, feito em 20/11) | `lgbm_<data>` | ✅ |
 | Estratégias de eras `2026_only` e `pretrain_finetune` | | v1 |
 | Várias sementes por configuração (bateria `modeling.sweep`) | `sweep_<data>/` | ✅ |
 | Ensemble da GRU: média dos quantis de 5 sementes (`modeling.ensemble`), usado ao vivo e no painel | `gru_<data>_ens5` | ✅ |
@@ -189,7 +190,7 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Recortes por circuito, regulamento, fase do stint e tráfego | v1 |
 | Inclinação da degradação contra o modelo misto | v1 |
 | Média ± desvio entre sementes | ✅ na bateria (`report.md`) |
-| Bootstrap por corrida | v1 |
+| Bootstrap da diferença de MAE | ✅ por piloto:corrida (`modeling.compare`); por corrida inteira, v1 |
 | Erro ao vivo em Interlagos | ✅ calculado depois da corrida ([relatório](race_reports/2026_sao_paulo.md)), com os tempos do feed gravado |
 
 ### Painel
@@ -201,6 +202,110 @@ A v0 é a versão que roda ao vivo no GP de São Paulo, em 8 de novembro de 2026
 | Backtest | previsto × real volta a volta nas corridas de validação e teste (incluindo Austin e México) |
 | Ao vivo | Interlagos: por piloto, voltas reais e previsão das próximas 10 voltas no cenário A, com faixa p10–p90; tabela de todos os pilotos |
 | Simulador de estratégia (cenário B) | v1 |
+
+## Comparação dos modelos na validação e no teste
+
+`modeling.compare` mede todos os runs nas mesmas voltas: limpas, com valor real e com previsão de todos os modelos (o ingênuo não prevê antes da primeira volta limpa). O skill é contra o ingênuo. O intervalo da diferença de MAE para a GRU vem de um bootstrap em blocos por piloto:corrida (2000 reamostras). Ele não cobre a variação entre corridas, porque cada divisão tem só 3 ou 4 corridas, e por isso é otimista. Resultados em `runs/compare_20261120/comparison.json`.
+
+**Validação** (Zandvoort, Monza, Madring, Baku; 33.507 voltas em comum)
+
+| Modelo | MAE (s) | RMSE (s) | Viés (s) | Erro em 5 voltas (s) | Cobertura 80% | Pinball (s) | Skill vs. ingênuo | MAE − GRU (IC 95%) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Ingênuo `naive_20261106` | 0,783 | 1,131 | +0,402 | 2,68 | — | — | — | +0,200 (+0,170 a +0,232) |
+| Linear misto `lmm_20261120` | 0,772 | 1,140 | +0,104 | 2,85 | 75,2% | 0,265 | +1,4% | +0,190 (+0,149 a +0,229) |
+| LightGBM `lgbm_20261120` | 0,597 | 0,889 | +0,089 | 2,00 | 71,4% | 0,204 | +23,7% | +0,015 (+0,002 a +0,028) |
+| GRU `gru_20261106_ens5` | **0,582** | **0,863** | +0,089 | **1,92** | 79,3% | **0,198** | **+25,6%** | — |
+
+**Teste** (Singapura, Austin, México; 28.220 voltas em comum)
+
+| Modelo | MAE (s) | RMSE (s) | Viés (s) | Erro em 5 voltas (s) | Cobertura 80% | Pinball (s) | Skill vs. ingênuo | MAE − GRU (IC 95%) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Ingênuo `naive_20261106` | 0,655 | 0,933 | +0,195 | 2,07 | — | — | — | +0,183 (+0,159 a +0,207) |
+| Linear misto `lmm_20261120` | 0,540 | 0,783 | −0,062 | 1,88 | 86,9% | 0,184 | +17,6% | +0,068 (+0,048 a +0,088) |
+| LightGBM `lgbm_20261120` | 0,498 | 0,729 | +0,030 | 1,63 | 81,2% | 0,165 | +23,9% | +0,026 (+0,015 a +0,038) |
+| GRU `gru_20261106_ens5` | **0,472** | **0,700** | +0,012 | **1,51** | 87,7% | **0,159** | **+28,0%** | — |
+
+MAE por horizonte (s):
+
+| Modelo | Divisão | h1 | h2 | h3 | h4 | h5 | h6 | h7 | h8 | h9 | h10 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Ingênuo | validação | 0,53 | 0,62 | 0,69 | 0,75 | 0,80 | 0,84 | 0,87 | 0,90 | 0,94 | 0,98 |
+| Linear misto | validação | 0,62 | 0,66 | 0,70 | 0,74 | 0,77 | 0,80 | 0,83 | 0,86 | 0,89 | 0,92 |
+| LightGBM | validação | 0,44 | 0,50 | 0,54 | 0,57 | 0,60 | 0,62 | 0,65 | 0,67 | 0,70 | 0,72 |
+| GRU | validação | 0,43 | 0,49 | 0,53 | 0,56 | 0,59 | 0,61 | 0,63 | 0,66 | 0,68 | 0,70 |
+| Ingênuo | teste | 0,47 | 0,54 | 0,59 | 0,63 | 0,66 | 0,68 | 0,71 | 0,74 | 0,77 | 0,80 |
+| Linear misto | teste | 0,45 | 0,49 | 0,51 | 0,53 | 0,54 | 0,55 | 0,57 | 0,59 | 0,59 | 0,60 |
+| LightGBM | teste | 0,40 | 0,44 | 0,47 | 0,49 | 0,51 | 0,52 | 0,54 | 0,55 | 0,55 | 0,55 |
+| GRU | teste | 0,38 | 0,42 | 0,45 | 0,47 | 0,48 | 0,49 | 0,50 | 0,51 | 0,52 | 0,53 |
+
+MAE por corrida e por tarefa (s; tarefa A: mesmo stint da volta `t`; tarefa B: depois de uma parada):
+
+| Modelo | Zandvoort | Monza | Madring | Baku | Singapura | Austin | México | A val. | B val. | A teste | B teste |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Ingênuo | 0,823 | 0,568 | 0,988 | 0,723 | 0,763 | 0,691 | 0,521 | 0,706 | 1,340 | 0,553 | 1,315 |
+| Linear misto | 0,701 | 0,552 | 1,064 | 0,774 | 0,677 | 0,492 | 0,450 | 0,718 | 1,167 | 0,521 | 0,662 |
+| LightGBM | 0,541 | **0,456** | 0,825 | 0,560 | 0,657 | 0,468 | 0,372 | 0,569 | 0,802 | 0,487 | 0,572 |
+| GRU | **0,507** | 0,466 | **0,821** | **0,528** | **0,597** | **0,457** | **0,364** | **0,557** | **0,765** | **0,461** | **0,544** |
+
+Leitura:
+- **A GRU é a melhor em quase tudo, mas o LightGBM fica perto:** 0,015 s atrás na validação e 0,026 s no teste. A diferença é pequena e consistente: o intervalo não cruza o zero nas duas divisões, e o LightGBM só ganha em Monza.
+- **O linear misto ganha do ingênuo no teste (+17,6%) e quase empata na validação (+1,4%).**
+  - Ele perde na volta seguinte (h1): o seu nível de piloto:corrida é a média de todas as voltas limpas até `t`, e não o ritmo das últimas voltas.
+  - Ganha nos horizontes longos e depois da parada (tarefa B), porque sabe o efeito do pneu novo e do composto.
+- **Intervalos:** os três modelos ficam perto de 80% de cobertura, com desvios diferentes.
+  - O LightGBM é estreito demais na validação (71%) e deixa 19% das voltas abaixo do p10.
+  - O linear misto e a GRU são um pouco largos no teste (87–88%).
+  - A pinball, que junta largura e cobertura, segue a ordem do MAE.
+
+### Modelo linear misto (`modeling.lmm`)
+
+Ajuste por REML (statsmodels `MixedLM`) nas 86.118 voltas limpas das 91 corridas de treino. O ritmo está em pontos percentuais: 1 pp ≈ 0,83 s numa volta de referência média de 83 s.
+
+    ritmo (pp) = 8,25 + composto + idade × composto − 3,94 × progresso da corrida
+                 + 0,027 × (temperatura da pista − média) + u_piloto:corrida + v_piloto:corrida × progresso + erro
+
+| Termo | Estimativa | Leitura em segundos |
+|---|---:|---|
+| Idade do pneu, médio | +0,054 pp por volta | +0,045 s por volta de pneu |
+| Idade do pneu, macio | +0,073 pp por volta | +0,061 s por volta, 36% mais que o médio |
+| Idade do pneu, duro | +0,054 pp por volta | igual ao médio |
+| Macio novo × médio novo | −0,24 pp | −0,20 s |
+| Progresso da corrida (do início ao fim) | −3,94 pp | −3,3 s: combustível e pista emborrachando |
+| Temperatura da pista | +0,027 pp por °C | +0,022 s por °C |
+| Desvio do intercepto piloto:corrida | 2,75 pp | 2,3 s |
+| Desvio da inclinação no progresso | 1,42 pp | 1,2 s ao longo da corrida |
+| Desvio do erro | 0,83 pp | 0,69 s |
+
+Ao vivo, o efeito aleatório de cada piloto:corrida é o BLUP com as voltas limpas (`clean_live`) até `t`, em forma fechada. Nas corridas de treino, com todas as voltas, ele coincide com o do statsmodels (diferença máxima de 4·10⁻¹²). Os quantis são os da normal, com a variância do efeito aleatório (dado o que já se viu) somada à do erro.
+
+Variantes da parte aleatória (MAE em segundos de cada run, nas suas próprias voltas):
+
+| Efeitos aleatórios por piloto:corrida | Validação | Teste |
+|---|---:|---:|
+| Intercepto (o do plano) | 0,799 | 0,544 |
+| Intercepto + inclinação na idade do pneu | 0,858 | 0,639 |
+| **Intercepto + inclinação no progresso da corrida** (escolhida) | **0,766** | **0,541** |
+| Intercepto + as duas inclinações | 0,972 | 0,669 |
+
+A inclinação no progresso deixa cada piloto ter a sua evolução ao longo da prova. A inclinação na idade do pneu piora: estimada com as poucas voltas de um stint, ela extrapola mal nas voltas seguintes.
+
+### LightGBM (`modeling.lgbm`)
+
+- **Previsão direta:** cada linha é uma volta prevista (`t`, `h`) e o horizonte é uma variável.
+- **Alvo:** a diferença entre o ritmo da volta `t + h` e a média das 3 últimas voltas limpas até `t` (o ingênuo). Sem volta limpa ainda, a base é a mediana do treino.
+- **37 variáveis**, todas calculáveis ao fim da volta `t`:
+  - histórico do ritmo limpo: última volta, médias de 3 e 5, desvio de 5, média e número de voltas limpas no stint, inclinação das 5 últimas do stint contra a idade do pneu, melhor volta e voltas desde a última limpa;
+  - estado na volta `t`: ritmo, posição, gaps, tráfego, bandeiras, clima, composto, idade do pneu e stint;
+  - conhecidas da volta `t + h`, como na GRU: composto e número C, idade do pneu, volta do stint, pneu novo, progresso e voltas restantes, mesmo stint e paradas até lá;
+  - circuito e regulamento.
+- **Treino:** 781.815 linhas das corridas de treino com volta prevista limpa.
+  - Um modelo por quantil (perda quantílica), 63 folhas, taxa de aprendizado 0,05.
+  - Número de árvores escolhido por early stopping na validação: 94 (p10), 379 (p50) e 201 (p90).
+  - Treina em ~2 min em CPU.
+- **Variáveis mais importantes no p50** (ganho): circuito 15%, inclinação do stint 13%, mesmo stint 10%, média de 3 voltas 7%, desvio de 5 voltas 5%, voltas de pneu até `t + h` 4,5%.
+- **Ablação do circuito:** sem ele, o MAE da validação piora de 0,597 para 0,626 s e o do teste melhora de 0,503 para 0,489 s.
+  - Pela validação, o circuito fica.
+  - Sem ele, o clima (temperatura do ar, umidade) sobe no ranking, como um substituto do circuito.
 
 ## Duelos
 

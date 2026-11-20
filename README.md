@@ -58,6 +58,8 @@ py pipeline/fetch_tracinginsights.py
 .venv/Scripts/python -m pipeline.race_laps
 .venv/Scripts/python -m pipeline.sequences
 .venv/Scripts/python -m modeling.naive      # baseline ingênuo -> runs/naive_<data>/
+.venv/Scripts/python -m modeling.lmm        # modelo linear misto -> runs/lmm_<data>/ (~20 s)
+.venv/Scripts/python -m modeling.lgbm       # LightGBM com lags, p10/p50/p90 -> runs/lgbm_<data>/ (~4 min)
 .venv/Scripts/python -m modeling.gru        # GRU encoder–decoder -> runs/gru_<data>_s1/ (~2 min em CPU)
 .venv/Scripts/python -m modeling.backtest   # relatório GRU × ingênuo (corridas do teste) -> runs/gru_.../backtest.html
 ```
@@ -73,6 +75,12 @@ O modelo em uso é a média das 5 sementes da configuração escolhida pela bate
 
 ```bash
 .venv/Scripts/python -m modeling.ensemble runs/sweep_20261106/gru_split3_h32_d0.1_lr0.001_s{1,2,3,4,5}   # -> runs/gru_<data>_ens5/
+```
+
+A comparação entre modelos usa as mesmas voltas para todos e dá o intervalo de 95% da diferença de MAE para o último run da lista (bootstrap por piloto:corrida); as tabelas estão em [docs/resultados.md](docs/resultados.md#comparação-dos-modelos-na-validação-e-no-teste):
+
+```bash
+.venv/Scripts/python -m modeling.compare naive_20261106 lmm_20261120 lgbm_20261120 gru_20261106_ens5   # -> runs/compare_<data>/
 ```
 
 Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), três processos ficam no ar, cada um no seu terminal, gravando em `data/live/<ano>_<circuito>_<sessão>/`:
@@ -130,7 +138,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
 
-*Atualizado em 10 de novembro de 2026.*
+*Atualizado em 20 de novembro de 2026.*
 
 ### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
 
@@ -155,7 +163,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 | Data | Atividade | Status |
 |---|---|---|
-| 9 – 15/11 | Compostos C1–C6 por GP (feito em 10/11); modelo linear misto e LightGBM; LSTM × GRU; previsão quantílica (pronta desde a v0); experimento das eras de regulamento; avaliação da v0 em Interlagos (feita, com a conferência contra os dados oficiais) | 🔄 |
+| 9 – 15/11 | Compostos C1–C6 por GP (feito em 10/11); modelo linear misto e LightGBM (feitos em 20/11); LSTM × GRU; previsão quantílica (pronta desde a v0); experimento das eras de regulamento; avaliação da v0 em Interlagos (feita, com a conferência contra os dados oficiais) | 🔄 |
 | 16 – 19/11 | Congelar a v1; painel com o simulador de estratégia; ensaio por replay da gravação de Interlagos | ⏳ |
 | Qui 19/11 | Ensaio no TL1 de Las Vegas (21h30) | ⏳ |
 | Sex 20/11 | Ensaios no TL2 (01h00) e TL3 (21h30) | ⏳ |

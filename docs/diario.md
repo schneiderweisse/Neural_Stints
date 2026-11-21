@@ -2,7 +2,51 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 21 de novembro de 2026
+
+### Modelo ao vivo da v1: a LSTM com regulamento
+
+- **A decisão:** o previsor ao vivo passa a usar o ensemble de 5 LSTMs com o embedding de regulamento (`lstm_20261120_ens5`) no lugar da GRU com regulamento (`gru_20261106_ens5`). Vale a partir do GP de Las Vegas.
+- **Por quê:** no fatorial célula × regulamento, os ensembles da LSTM com regulamento e da GRU sem regulamento empataram na validação (pinball de 0,1953 contra 0,1951). Entre as duas, a LSTM tem:
+  - o menor MAE de teste (0,457 s);
+  - a cobertura mais perto de 80% na validação;
+  - o melhor resultado em São Paulo (1,001 s contra 1,062 s).
+- **Ela não segue a regra por semente:** essa regra apontava a GRU sem regulamento (0,202 contra 0,206).
+- **O ensemble misto também foi avaliado,** com as 10 redes: 5 GRUs sem regulamento e 5 LSTMs com regulamento.
+  - Na validação, ganhou por pouco: MAE de 0,562 s contra 0,569 s.
+  - Em São Paulo, deu 0,992 s.
+  - Parte desse ganho pode vir só de ter o dobro de membros. Ficou de fora: a v1 fica com uma célula só.
+- **No código:**
+  - `live/predict.py` ganhou `LIVE_RUN = runs/lstm_20261120_ens5`, o padrão quando não se passa `--run`. Antes, o padrão era a GRU mais recente.
+  - Os textos do painel que diziam "GRU" (previsão, duelos) agora dizem "rede".
+- **Conferido:** a reprodução de São Paulo com o padrão dá MAE de 1,001 s. Foram 7.661 voltas, 5 membros e cerca de 80 ms por previsão.
+- Detalhes em [resultados.md](resultados.md#célula--regulamento).
+
 ## 20 de novembro de 2026
+
+### Célula × regulamento: a LSTM sem regulamento
+
+- **A pergunta:** a LSTM ganhou da GRU, e tirar o regulamento ajudou a GRU. Os dois ganhos se somam? Para responder, faltava uma casa do fatorial 2×2: a LSTM sem regulamento.
+- **O treino:** `modeling.eras` ganhou `--cell` e `--strategies`. A LSTM escolhida (estado 32, dropout 0,1) foi treinada sem o regulamento, 5 sementes, 3 em paralelo, em ~8 min.
+- **A regra, fixada antes de treinar:** ganha a menor média da pinball de validação por semente. O teste e São Paulo só descrevem.
+
+| Célula | Regulamento | Pinball val., por semente (s) | MAE val., ensemble (s) | MAE teste, ensemble (s) | São Paulo (s) |
+|---|---|---:|---:|---:|---:|
+| GRU | com (em uso) | 0,207 | 0,582 | 0,472 | 1,037 |
+| GRU | sem | **0,202** | **0,565** | 0,463 | 1,062 |
+| LSTM | com | 0,206 | 0,569 | **0,457** | **1,001** |
+| LSTM | sem | 0,209 | 0,581 | 0,463 | 1,018 |
+
+- **Os ganhos não se somam.** Sem o regulamento, a LSTM piora: a pinball de validação sobe em 3 das 5 sementes.
+  - O efeito de tirar o regulamento, pareado por semente, é −0,005 na GRU e +0,003 na LSTM. A interação (+0,008, erro-padrão 0,004) é maior que o próprio ganho na GRU.
+  - Ou seja, o ganho depende da célula; não é uma propriedade dos dados.
+- **Pela regra, a escolhida é a GRU sem regulamento.**
+- **Nos ensembles, ela empata com a LSTM com regulamento:**
+  - pinball de validação de 0,1951 contra 0,1953;
+  - diferença de MAE de +0,004 s na validação e −0,006 s no teste, os dois intervalos cruzando o zero.
+  - A LSTM com regulamento ganha em São Paulo (1,001 s contra 1,062 s), mas essa corrida fica fora do protocolo.
+- **Tempo ao vivo:** ~55 ms por previsão na GRU e ~80 ms na LSTM, menos de 2 s por volta para 20 pilotos.
+- Detalhes em [resultados.md](resultados.md#célula--regulamento).
 
 ### Eras de regulamento
 

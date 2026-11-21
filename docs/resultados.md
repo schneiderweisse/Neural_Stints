@@ -502,7 +502,63 @@ Leitura:
   - Na reprodução com o previsor ao vivo, o só 2026 é o melhor (0,954 s, cobertura de 75%). Depois vêm o fine-tuning do `pooled` (1,028 s) e o modelo em uso (1,037 s). O sem regulamento fica em 1,062 s e o só 2022–25 em 1,136 s.
   - É uma corrida só, fora do protocolo e atípica. Com o quali molhado, a referência do alvo veio dos treinos livres, e as voltas são as do fluxo ao vivo.
   - Mesmo assim, mostra que a vantagem do `pooled_noreg` é pequena e que a ordem pode mudar de uma corrida para outra.
-- **O previsor ao vivo continua com `gru_20261106_ens5`.** O ensemble sem regulamento está em `runs/eras_20261120/pooled_noreg_ens5` e roda com `--run eras_20261120/pooled_noreg_ens5`. A escolha do modelo da v1 fica para o congelamento.
+- **O ensemble sem regulamento** está em `runs/eras_20261120/pooled_noreg_ens5` e roda com `--run eras_20261120/pooled_noreg_ens5`.
+- **O modelo ao vivo da v1 é a LSTM com regulamento.** Ela foi escolhida depois do fatorial [célula × regulamento](#célula--regulamento).
+
+### Célula × regulamento
+
+Tirar o regulamento ajudou a GRU, e a LSTM tinha ganhado da GRU. Para ver se os dois ganhos se somam, a LSTM escolhida (estado 32, dropout 0,1) foi treinada sem o embedding de regulamento, com 5 sementes (`modeling.eras --cell lstm --strategies pooled_noreg`, em `runs/eras_20261120_lstm/`). As outras três casas do fatorial já existiam. A regra foi fixada antes do treino: ganha a casa com a menor média da pinball de validação por semente.
+
+**Por semente** (média ± desvio entre 5 sementes)
+
+| Célula | Regulamento | Pinball validação (s) | MAE validação (s) | Cobertura validação | MAE teste (s) | Cobertura teste |
+|---|---|---|---|---|---|---|
+| GRU | com (em uso) | 0,207 ± 0,007 | 0,610 ± 0,022 | 77,4% ± 2,7 | 0,496 ± 0,014 | 85,5% ± 1,8 |
+| GRU | sem | **0,202 ± 0,005** (escolhida) | **0,588 ± 0,009** | 75,9% ± 3,0 | **0,485 ± 0,013** | 84,0% ± 2,0 |
+| LSTM | com | 0,206 ± 0,008 | 0,606 ± 0,026 | 76,6% ± 3,2 | 0,488 ± 0,020 | 85,3% ± 1,1 |
+| LSTM | sem | 0,209 ± 0,004 | 0,608 ± 0,010 | 74,1% ± 1,7 | 0,498 ± 0,015 | 82,4% ± 1,9 |
+
+**Efeito de tirar o regulamento, pareado por semente** (sem − com, entre parênteses o erro-padrão). Com a mesma semente, a rede começa dos mesmos pesos e vê os lotes na mesma ordem; só muda a coluna de regulamento.
+
+| Célula | Pinball validação (s) | MAE validação (s) | MAE teste (s) | Sementes em que a pinball de validação melhora |
+|---|---:|---:|---:|---:|
+| GRU | −0,0047 (0,0019) | −0,021 (0,006) | −0,010 (0,010) | 4 de 5 |
+| LSTM | +0,0029 (0,0031) | +0,002 (0,011) | +0,010 (0,013) | 2 de 5 |
+| Interação (LSTM − GRU) | +0,0076 (0,0037) | +0,023 (0,013) | +0,021 (0,017) | |
+
+**Ensembles de 5 sementes**, nas mesmas voltas (`runs/compare_20261120_eras2x2/`). A última coluna é a reprodução de São Paulo com o previsor ao vivo, nas 7.661 voltas limpas previstas por todos.
+
+| Célula | Regulamento | Pinball val. (s) | MAE val. (s) | MAE − em uso, val. (IC 95%) | Pinball teste (s) | MAE teste (s) | MAE − em uso, teste (IC 95%) | Cobertura val. / teste | São Paulo: MAE (s) e cobertura |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| GRU | com (em uso) | 0,1985 | 0,582 | — | 0,1593 | 0,472 | — | 79,3% / 87,7% | 1,037 · 57,8% |
+| GRU | sem | **0,1951** | **0,565** | −0,017 (−0,024 a −0,010) | **0,1565** | 0,463 | −0,009 (−0,014 a −0,005) | 77,8% / 86,3% | 1,062 · 50,3% |
+| LSTM | com | 0,1953 | 0,569 | −0,013 (−0,023 a −0,004) | 0,1566 | **0,457** | −0,015 (−0,022 a −0,008) | 78,6% / 87,4% | **1,001 · 61,0%** |
+| LSTM | sem | 0,1994 | 0,581 | −0,001 (−0,012 a +0,010) | 0,1575 | 0,463 | −0,009 (−0,017 a −0,000) | 75,9% / 85,0% | 1,018 · 55,9% |
+
+Comparação direta das duas melhores (`runs/compare_20261120_lstm_vs_noreg/`): o MAE da LSTM com regulamento menos o da GRU sem regulamento é +0,004 s na validação (IC −0,004 a +0,011) e −0,006 s no teste (−0,012 a +0,001).
+
+**Tempo ao vivo**, na reprodução de São Paulo (CPU, 5 membros): 53–56 ms por previsão na GRU e 74–85 ms na LSTM. Para 20 pilotos, dá menos de 2 s por volta, contra voltas de 1,5 min.
+
+Leitura:
+- **Os ganhos não se somam.** Sem o regulamento, a LSTM piora:
+  - a pinball de validação sobe em 3 das 5 sementes;
+  - o ensemble perde a vantagem sobre a GRU em uso na validação (−0,001 s, IC de −0,012 a +0,010);
+  - a cobertura cai mais (74% na validação, por semente).
+- **O efeito do regulamento depende da célula.** A interação é de +0,008 na pinball (erro-padrão 0,004), maior que o próprio ganho na GRU. O ganho de tirar o regulamento é consistente na GRU (4 das 5 sementes, 5 das 5 no MAE de validação), mas não aparece na LSTM. Não é uma propriedade dos dados que valha para as duas redes.
+- **Pela regra, a escolhida é a GRU sem regulamento:** 0,202 de pinball por semente, contra 0,206 da LSTM com regulamento.
+- **Nos ensembles, as duas melhores empatam.**
+  - A pinball de validação é 0,1951 contra 0,1953. As diferenças de MAE entre elas cruzam o zero na validação e no teste.
+  - A LSTM com regulamento tem a cobertura mais perto de 80% na validação e ganha em São Paulo (1,001 s contra 1,062 s), mas São Paulo fica fora do protocolo.
+- **Também foi avaliado um ensemble misto** com as 10 redes (as 5 GRUs sem regulamento e as 5 LSTMs com regulamento, média dos quantis).
+  - Ele teve MAE de 0,562 s e pinball de 0,1937 na validação, e MAE de 0,455 s e pinball de 0,1554 no teste. Em São Paulo, deu 0,992 s.
+  - O ganho sobre cada uma das duas é de 0,002 a 0,007 s. Parte dele pode vir só de ter o dobro de membros.
+  - Não foi adotado.
+
+**Modelo ao vivo da v1: a LSTM com regulamento (`lstm_20261120_ens5`)**, decidido em 21/11/2026.
+- **Por que ela:** nos ensembles, que são o que vai ao vivo, ela empata com a GRU sem regulamento na validação. Ela tem o menor MAE de teste, a cobertura mais perto de 80% e o melhor resultado em São Paulo.
+- **Ela não segue a regra por semente,** que apontava a GRU sem regulamento (0,202 contra 0,206).
+- **Como roda:** é o `LIVE_RUN` de `live/predict.py`, o padrão do `python -m live.predict`. Os outros modelos rodam com `--run`. A reprodução de São Paulo com o padrão dá 1,001 s, igual à da tabela.
+- **Leitura das tabelas acima:** "em uso" é a GRU com regulamento (`gru_20261106_ens5`), o modelo ao vivo até 20/11.
 
 ## Duelos
 

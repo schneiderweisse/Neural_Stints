@@ -88,6 +88,7 @@ O experimento das eras de regulamento treina a GRU escolhida com 5 sementes em c
 
 ```bash
 .venv/Scripts/python -m modeling.eras --workers 3   # -> runs/eras_<data>/report.md e um ensemble por estratégia
+.venv/Scripts/python -m modeling.eras --cell lstm --strategies pooled_noreg   # LSTM sem regulamento -> runs/eras_<data>_lstm/
 ```
 
 A comparação entre modelos usa as mesmas voltas para todos e dá o intervalo de 95% da diferença de MAE para o último run da lista (bootstrap por piloto:corrida), além da calibração dos quantis; as tabelas estão em [docs/resultados.md](docs/resultados.md#comparação-dos-modelos-na-validação-e-no-teste):
@@ -107,7 +108,7 @@ Enquanto rodam ao vivo, os três pedem ao Windows para não suspender nem apagar
 ```bash
 .venv/Scripts/python -m live.recorder                     # grava a sessão (SSE do f1-dash)
 .venv/Scripts/python -m live.reader                       # ao vivo, lendo o f1-dash a cada 3 s
-.venv/Scripts/python -m live.predict                      # previsões na corrida mais recente
+.venv/Scripts/python -m live.predict                      # previsões na corrida mais recente (modelo: LSTM com regulamento, lstm_20261120_ens5)
 .venv/Scripts/python -m live.reader --replay <gravação>   # reprodução de uma corrida gravada
 .venv/Scripts/python -m live.history 2026_19              # confere: caminho ao vivo × pipeline numa corrida do treino
 ```

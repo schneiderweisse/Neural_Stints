@@ -1,4 +1,4 @@
-"""Duelos, embaixo da cronometragem: pares de pilotos, o gap projetado pela GRU e quando a disputa começa.
+"""Duelos, embaixo da cronometragem: pares de pilotos, o gap projetado pela rede e quando a disputa começa.
 
 Os pares vêm de dois lugares: os duelos fixos escolhidos no painel (sempre um par de pilotos) e os
 automáticos, os pares vizinhos a até 5 s com a maior chance de disputa nas próximas 10 voltas. Disputa é
@@ -150,7 +150,7 @@ def legend(show_real: bool) -> str:
     def sw(body: str) -> str:
         return f"<svg width='24' height='10' viewBox='0 0 24 10' aria-hidden='true'>{body}</svg>"
     items = [
-        (sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{LINE}' stroke-width='2'/>"), "gap previsto pela GRU"),
+        (sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{LINE}' stroke-width='2'/>"), "gap previsto pela rede"),
         (sw(f"<rect x='1' y='1' width='22' height='8' fill='{BAND}'/>"), "faixa de 80% do gap"),
         (sw(f"<rect x='1' y='0' width='22' height='10' fill='{WINDOW_FILL}' stroke='{AMBER}' stroke-opacity='.35'/>"),
          "janela da disputa (80%)"),
@@ -226,7 +226,7 @@ def render(rows: list[dict], laps_now: pd.DataFrame, laps_all: pd.DataFrame, pre
         elif b["status"] in ("box", "saída do box") or a["status"] in ("box", "saída do box"):
             pair["note"] = "Projeção suspensa: um dos dois está no box."
         elif behind not in fc or ahead not in fc:
-            pair["note"] = "Sem previsão da GRU para um dos dois ainda."
+            pair["note"] = "Sem previsão da rede para um dos dois ainda."
         else:
             t, mb = fc[behind]
             _, ma = fc[ahead]
@@ -265,7 +265,7 @@ def render(rows: list[dict], laps_now: pd.DataFrame, laps_all: pd.DataFrame, pre
     candidates.sort(key=lambda p: -p["window"]["p_horizon"])
     pairs += [p for p in candidates[:AUTO_PAIRS] if p["window"]["p_horizon"] >= 0.05]
 
-    st.caption("Disputa: o carro de trás a menos de 1 s do da frente na linha. A GRU projeta o gap somando as "
+    st.caption("Disputa: o carro de trás a menos de 1 s do da frente na linha. A rede projeta o gap somando as "
                "diferenças de tempo previstas para as próximas 10 voltas; a faixa e a janela (em amarelo) são de 80%. "
                "Supõe que ninguém para. Nas corridas de teste, 82% das disputas previstas aconteceram, 86% delas "
                "a até 1 volta da prevista.")

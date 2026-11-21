@@ -1,12 +1,14 @@
-"""Previsões da GRU sobre o histórico ao vivo.
+"""Previsões da rede sobre o histórico ao vivo.
 
 Acompanha data/live/<sessão>/laps.parquet (gravado pelo live.reader). A cada volta nova de um piloto,
 monta as variáveis com live/history.py (as mesmas funções do pipeline), codifica com a normalização e
 os vocabulários do treino guardados no model.pt e prevê as próximas 10 voltas no cenário A (o piloto
 segue na pista com o pneu atual). Se o run for um ensemble (modeling.ensemble), a previsão é a média
-dos quantis de todos os membros, como nas previsões de validação e teste do run. Grava data/live/<sessão>/predictions.parquet no formato padrão de
-docs/resultados.md, com split = live; o valor real de cada volta prevista é preenchido quando ela
-termina, e aí dá para medir o erro ao vivo.
+dos quantis de todos os membros, como nas previsões de validação e teste do run. O modelo padrão é
+LIVE_RUN (a LSTM com regulamento, escolhida em 21/11/2026); --run troca por outro run.
+
+Grava data/live/<sessão>/predictions.parquet no formato padrão de docs/resultados.md, com split = live;
+o valor real de cada volta prevista é preenchido quando ela termina, e aí dá para medir o erro ao vivo.
 
 Só faz sentido em corridas (e sprints): os treinos livres não têm total de voltas.
 
@@ -29,18 +31,20 @@ import torch
 from live import history
 from live.history import LIVE
 from live.power import keep_awake
-from modeling.gru import Seq2SeqGRU, latest_run
-from modeling.results import finish_predictions, write_atomic
+from modeling.gru import Seq2SeqGRU
+from modeling.results import RUNS, finish_predictions, write_atomic
 from pipeline import sequences as sq
 from pipeline.race_laps import CIRCUITS, regulation
 
 SESSION_TYPES = ("race", "sprint")
+# modelo ao vivo da v1: ensemble de 5 LSTMs com o embedding de regulamento (docs/resultados.md, célula × regulamento)
+LIVE_RUN = RUNS / "lstm_20261120_ens5"
 
 
 class LivePredictor:
     def __init__(self, session_dir: Path, run_dir: Path | None = None, reference: pd.DataFrame | None = None):
         self.dir = Path(session_dir)
-        self.run_dir = run_dir or latest_run("gru")
+        self.run_dir = Path(run_dir) if run_dir else LIVE_RUN
         ck = torch.load(self.run_dir / "model.pt", weights_only=False)
         # um ensemble (modeling.ensemble) guarda vários membros; um run comum é um membro só. Cada membro
         # leva as categorias que trata como <unk> (modeling.gru: anos fora do treino, colunas apagadas)
@@ -192,7 +196,7 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", help="pasta em data/live (padrão: a corrida mais recente)")
-    ap.add_argument("--run", help="pasta em runs/ do modelo (padrão: a GRU mais recente)")
+    ap.add_argument("--run", help=f"pasta em runs/ do modelo (padrão: {LIVE_RUN.name})")
     ap.add_argument("--once", action="store_true", help="prevê todas as voltas do histórico e sai")
     ap.add_argument("--interval", type=float, default=3.0)
     args = ap.parse_args()

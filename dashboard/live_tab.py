@@ -255,9 +255,9 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
                        "O ajuste do modelo está nas abas GRU v0 e Tarefas A e B; ao vivo, no painel completo, a "
                        "previsão das próximas 10 voltas aparece aqui a cada volta.")
         elif str(sub(state, "SessionInfo", "Type") or "").lower() in ("race", "sprint"):
-            st.caption("Previsões da GRU: rode `python -m live.predict` para vê-las aqui.")
+            st.caption("Previsões da rede: rode `python -m live.predict` para vê-las aqui.")
         return
-    st.subheader("Previsão da GRU v0 (cenário A: mesmo pneu, sem parada)")
+    st.subheader("Previsão da rede (cenário A: mesmo pneu, sem parada)")
     if "gru_run" in preds:
         run = str(preds["gru_run"].iloc[-1])
         ens = data.run_files(run)["config"].get("ensemble") if (data.RUNS / run / "config.json").exists() else None

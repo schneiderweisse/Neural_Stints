@@ -101,7 +101,7 @@ Durante uma sessão, com o f1-dash rodando (`realtime` em `localhost:4000`), tr�
 
 - o **gravador** salva o fluxo bruto em `recording.jsonl`, no formato do simulador do f1-dash (serve para o replay do projeto e para rever a sessão no próprio painel do f1-dash);
 - o **leitor** monta o histórico de voltas em `laps.parquet` (e os dados da sessão em `session.json`);
-- o **previsor** roda a LSTM com regulamento (`runs/lstm_20261120_ens5`, ou o modelo de `--run`) a cada volta nova e grava `predictions.parquet` no formato padrão, preenchendo o valor real de cada volta prevista quando ela termina. Só funciona em corridas e sprints, que têm total de voltas.
+- o **previsor** roda a LSTM com regulamento (`runs/lstm_20261120_ens5`, ou o modelo de `--run`) a cada volta nova e grava `predictions.parquet` no formato padrão, preenchendo o valor real de cada volta prevista quando ela termina. Se cair e for reaberto, ele retoma o arquivo e prevê as voltas que passaram enquanto estava parado. Só funciona em corridas e sprints, que têm total de voltas.
 
 Enquanto rodam ao vivo, os três pedem ao Windows para não suspender nem apagar a tela (`live/power.py`). Neste notebook, a tela apagar por inatividade já leva ao modo de espera, que corta a rede alguns minutos depois. Mesmo assim, fechar a tampa ou fechar o app onde os terminais rodam interrompe tudo. Se o feed da F1 parar de chegar por mais de 90 s, o leitor avisa no terminal e o painel troca o selo AO VIVO por "SEM DADOS HÁ X MIN".
 
@@ -114,7 +114,7 @@ Enquanto rodam ao vivo, os três pedem ao Windows para não suspender nem apagar
 .venv/Scripts/python -m live.history 2026_19              # confere: caminho ao vivo × pipeline numa corrida do treino
 ```
 
-O painel tem quatro abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sessão gravada: cronometragem, tempos de volta e, na corrida, as previsões da rede), **Mapa** (o traçado com a posição de cada carro, estimada pelos minissetores, porque o feed não traz as coordenadas), **GRU v0** (métricas, gráficos e exemplos do modelo treinado contra o ingênuo) e **Tarefas A e B** (previsto × real para até dois pilotos: o ritmo nas k voltas depois do começo da corrida ou de uma parada, e o stint inteiro de um jogo de pneus, com a degradação real e a prevista):
+O painel tem cinco abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sessão gravada: cronometragem, tempos de volta e, na corrida, as previsões da rede), **Mapa** (o traçado com a posição de cada carro, estimada pelos minissetores, porque o feed não traz as coordenadas), **Replay** (uma corrida já disputada em time-lapse no mapa, acompanhando um piloto: 2 s por volta, e 6 s com zoom quando ele está a menos de 1 s de outro carro; vem da telemetria, com `pipeline.race_replay`. No modo **Duelos previstos pela rede**, cada duelo que a rede previu ao vivo é reproduzido desde a volta da previsão, com o gap previsto e a janela contra o gap real: os que começam, quando o carro de trás chega a menos de 1 s, e os já em curso, quando a rede prevê se ele passa; vem de `modeling.duel_replay`), **GRU v0** (métricas, gráficos e exemplos do modelo treinado contra o ingênuo) e **Tarefas A e B** (previsto × real para até dois pilotos: o ritmo nas k voltas depois do começo da corrida ou de uma parada, e o stint inteiro de um jogo de pneus, com a degradação real e a prevista):
 
 ```bash
 .venv/Scripts/streamlit run dashboard/app.py              # http://localhost:8501
@@ -122,7 +122,7 @@ O painel tem quatro abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sess
 
 O cabeçalho mostra os logos da F1 e da UnB se os arquivos estiverem em `dashboard/assets/` (ver o README da pasta). Por serem marcas registradas, eles ficam fora do git.
 
-A demo pública em `demo/` usa as mesmas abas, sem a parte ao vivo: a reprodução do GP de São Paulo de 2026 (com as previsões feitas ao vivo) e da corrida de 2019, e o ajuste do modelo, rodando no navegador com stlite e publicada no GitHub Pages. No lugar do logo da F1, o cabeçalho dela tem "F1" em texto. Como montar e atualizar: [demo/README.md](demo/README.md).
+A demo pública em `demo/` tem tudo o que o painel tem, menos a parte ao vivo (a leitura do f1-dash e a aba Mapa): a reprodução dos GPs de Las Vegas e de São Paulo de 2026 (com as previsões feitas ao vivo) e da corrida de 2019, o Replay de Las Vegas com os duelos previstos pela rede e o ajuste do modelo. Ela roda no navegador com stlite e é publicada no GitHub Pages. No lugar do logo da F1, o cabeçalho dela tem "F1" em texto. Como montar e atualizar: [demo/README.md](demo/README.md).
 
 Se o leitor for reiniciado no meio da sessão, ele retoma o histórico já gravado. O `live/history.py` transforma esse histórico nas variáveis do treino, usando as mesmas funções do pipeline.
 
@@ -134,7 +134,7 @@ No macOS ou Linux, use `python3` e `.venv/bin/python`.
 pipeline/   scripts de coleta e preparação dos dados
 modeling/   modelos (baselines e redes) e cálculo das métricas
 live/       leitura do live timing (f1-dash ou gravação), gravador, histórico e previsões ao vivo
-dashboard/  painel Streamlit (abas Ao Vivo, com cronometragem, duelos e previsões; GRU v0; Tarefas A e B)
+dashboard/  painel Streamlit (abas Ao Vivo, com cronometragem, duelos e previsões; Mapa; Replay; GRU v0; Tarefas A e B)
 demo/       demo do painel para o GitHub Pages (stlite, sem a parte ao vivo) e os seus dados enxutos
 runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)
@@ -153,7 +153,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
 
-*Atualizado em 20 de novembro de 2026.*
+*Atualizado em 22 de novembro de 2026.*
 
 ### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
 
@@ -179,11 +179,11 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 | Data | Atividade | Status |
 |---|---|---|
 | 9 – 15/11 | Compostos C1–C6 por GP (feito em 10/11); modelo linear misto e LightGBM (feitos em 20/11); LSTM × GRU (feito em 20/11); previsão quantílica (pronta desde a v0; calibração de todos os modelos medida em 20/11); experimento das eras de regulamento (feito em 20/11); avaliação da v0 em Interlagos (feita, com a conferência contra os dados oficiais) | ✅ |
-| 16 – 19/11 | Congelar a v1; painel com o simulador de estratégia; ensaio por replay da gravação de Interlagos | ⏳ |
+| 16 – 19/11 | Congelar a v1 (feito em 21/11: a LSTM com regulamento); painel com o simulador de estratégia (pendente); ensaio por replay da gravação de Interlagos (feito em 21/11) | 🔄 |
 | Qui 19/11 | Ensaio no TL1 de Las Vegas (21h30) | ⏳ |
 | Sex 20/11 | Ensaios no TL2 (01h00) e TL3 (21h30) | ⏳ |
 | Sáb 21/11 | Quali (01h00), que fornece a referência (TracingInsights, 22 pilotos, puxado em 21/11) | ✅ |
-| Dom 22/11 | 🔴 **GP de Las Vegas (01h00, sábado à noite):** v1 ao vivo e gravação da corrida (gravada a partir da volta 12) | ✅ |
+| Dom 22/11 | 🔴 **GP de Las Vegas (01h00, sábado à noite):** v1 ao vivo e gravação da corrida (gravada a partir da volta 12); depois, a aba Replay (corrida pela telemetria e duelos previstos pela rede), também na demo | ✅ |
 
 ### Semanas 4 e 5 · 23 de novembro até a entrega
 

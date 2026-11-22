@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<!-- Player do replay de corrida (aba Replay). O dashboard/replay_tab.py troca os dois marcadores abaixo
+     pelos dados do pipeline/race_replay.py e pela geometria do mapa. Tudo roda no navegador. -->
+<style>
+:root {--bg:#0d1117; --panel:#161b22; --border:#30363d; --line:#21262d; --ink:#e6edf3; --muted:#7d8590;
+       --accent:#f78166; --green:#3fb950; --amber:#d29922; --red:#f85149; --blue:#2f81f7; --purple:#a371f7;}
+* {box-sizing: border-box;}
+html, body {margin: 0; background: var(--bg); color: var(--ink); font-size: 14px;
+            font-family: "Source Sans Pro", "Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif;}
+.mono {font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums;}
+#app {display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 10px;}
+#bar {grid-column: 1 / -1; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; border: 1px solid var(--border);
+      background: var(--panel); border-radius: 6px; padding: 7px 12px;}
+button {background: #21262d; color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px;
+        cursor: pointer; font: inherit;}
+button:hover {border-color: #8b949e;}
+button.primary {background: #238636; border-color: #2ea043; min-width: 44px;}
+.lap {font-size: 16px; font-weight: 600;}
+.lap small {color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 4px;}
+.pill {border: 1px solid; border-radius: 2em; padding: 1px 10px; font-size: 12px; font-weight: 500; white-space: nowrap;}
+.speed {color: var(--muted); font-size: 12.5px; min-width: 150px;}
+.speed.duel {color: var(--accent); font-weight: 600;}
+.ctls {display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; align-items: center;}
+label.ctl {color: var(--muted); font-size: 12.5px; display: flex; gap: 5px; align-items: center;}
+select {background: var(--bg); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;
+        font: inherit; font-size: 12.5px;}
+#stage {position: relative; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); overflow: hidden;}
+#map {display: block; width: 100%; height: auto;}
+#banners {position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+          max-width: 46%;}
+.banner {background: rgba(22,27,34,.94); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+         border-radius: 6px; padding: 5px 11px 6px;}
+.banner .k {font-size: 11px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase;}
+.banner .v {font-size: 15px; font-weight: 600;}
+.banner .v .mono {font-size: 14px;}
+.banner.box {border-left-color: var(--blue);}
+#flag {position: absolute; right: 12px; top: 12px; pointer-events: none;}
+#flag .pill {font-size: 13px; padding: 3px 12px; background: rgba(13,17,23,.85);}
+#toasts {position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; flex-direction: column-reverse;
+         gap: 6px; align-items: center; pointer-events: none; width: 70%;}
+.toast {background: rgba(22,27,34,.96); border: 1px solid var(--border); border-radius: 6px; padding: 6px 14px;
+        font-size: 15px; font-weight: 600; animation: pop .25s ease-out; text-align: center;}
+.toast.good {border-color: var(--green); color: var(--green);}
+.toast.bad {border-color: var(--red); color: var(--red);}
+.toast.flag {border-color: var(--amber); color: var(--amber);}
+.toast.info {color: var(--ink);}
+@keyframes pop {from {transform: translateY(8px); opacity: 0;} to {transform: none; opacity: 1;}}
+#ticker {position: absolute; left: 12px; right: 12px; bottom: 9px; color: var(--muted); font-size: 12.5px; text-align: center;
+         pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+#picker {position: absolute; inset: 0; background: rgba(13,17,23,.93); display: flex; flex-direction: column;
+         align-items: center; justify-content: center; gap: 12px; padding: 16px;}
+#picker h2 {margin: 0; font-size: 18px; font-weight: 600;}
+#picker .hint {color: var(--muted); font-size: 13px; max-width: 720px; text-align: center;}
+#grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; width: min(860px, 100%);}
+#grid button {display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 10px;}
+#grid .p {color: var(--muted); width: 22px; text-align: right;}
+#grid .bar {width: 4px; height: 18px; border-radius: 2px;}
+#grid .t {font-weight: 600;}
+#grid .n {color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;}
+#side {display: flex; flex-direction: column; gap: 10px; min-width: 0;}
+.card {border: 1px solid var(--border); border-radius: 6px; background: var(--panel); padding: 8px 10px;}
+#me .big {font-size: 20px; font-weight: 700;}
+#me .sub {color: var(--muted); font-size: 12.5px; margin-bottom: 6px;}
+#me .kv {display: flex; justify-content: space-between; font-size: 13px; padding: 1px 0;}
+#me .kv span:first-child {color: var(--muted);}
+.tyre {display: inline-block; border: 2px solid; border-radius: 50%; width: 19px; height: 19px; line-height: 15px;
+       text-align: center; font-weight: 700; font-size: 11px; margin-right: 4px;}
+#order {padding: 4px 0;}
+#order .row {display: flex; align-items: center; gap: 6px; padding: 1px 8px; font-size: 13px; border-left: 3px solid transparent;}
+#order .row.sel {border-left-color: var(--accent); background: rgba(247,129,102,.13);}
+#order .row.rival {background: rgba(210,153,34,.12);}
+#order .row.out {opacity: .5;}
+#order .pos {width: 20px; text-align: right; color: var(--muted);}
+#order .dot {width: 4px; height: 13px; border-radius: 2px;}
+#order .gap {margin-left: auto; color: var(--muted); font-size: 12px;}
+#order .gap.close {color: var(--accent);}
+#tl {grid-column: 1 / 2; position: relative; height: 38px; border: 1px solid var(--border); border-radius: 6px;
+     background: var(--panel); cursor: pointer; overflow: hidden;}
+#tl canvas {display: block; width: 100%; height: 100%;}
+#head {position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); pointer-events: none;}
+#legend {grid-column: 2 / 3; color: var(--muted); font-size: 11.5px; line-height: 1.35; align-self: center;}
+#legend i {display: inline-block; width: 10px; height: 8px; border-radius: 2px; margin-right: 4px;}
+#chapters {grid-column: 1 / -1;}
+#chapters .sum {color: var(--muted); font-size: 12.5px; margin-bottom: 6px;}
+#chips {display: flex; flex-wrap: wrap; gap: 6px;}
+.chip {border: 1px solid var(--border); border-radius: 2em; padding: 2px 10px; font-size: 12.5px; cursor: pointer;
+       background: var(--panel); color: var(--ink);}
+.chip:hover {border-color: #8b949e;}
+.chip.ganhou {border-color: rgba(63,185,80,.6);}
+.chip.perdeu {border-color: rgba(248,81,73,.6);}
+.chip.trocou {border-color: rgba(210,153,34,.7);}
+.chip.now {background: rgba(247,129,102,.18); border-color: var(--accent);}
+.chip b {font-weight: 600;}
+.seg {display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;}
+.seg button {border: 0; border-radius: 0; background: transparent; padding: 4px 11px; color: var(--muted);}
+.seg button.on {background: #30363d; color: var(--ink);}
+#fcwrap {grid-column: 1 / 2; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); display: none;
+         padding: 4px 6px 2px; cursor: pointer;}
+#fc {display: block; width: 100%; height: 190px;}
+#fclegend {grid-column: 2 / 3; color: var(--muted); font-size: 11.5px; line-height: 1.45; display: none; align-self: center;}
+#fclegend i {display: inline-block; width: 14px; height: 0; border-top: 2px solid; margin-right: 5px; vertical-align: middle;}
+#fclegend i.band {height: 8px; border: 0; background: rgba(57,135,229,.25);}
+#fclegend i.win {height: 8px; border: 0; background: rgba(210,153,34,.18);}
+.group {margin: 8px 0 4px; font-size: 12.5px; color: var(--muted);}
+.chip .live {color: var(--muted); font-size: 11px;}
+.verdict {font-weight: 600;}
+.verdict.ok {color: var(--green);} .verdict.no {color: var(--red);} .verdict.mid {color: var(--amber);} .verdict.off {color: var(--muted);}
+#grid .cnt {margin-left: auto; color: var(--accent); font-size: 11.5px; white-space: nowrap;}
+#grid button.none {opacity: .45;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <button id="play" class="primary" title="tocar / pausar (espaço)">▶</button>
+    <button id="pick" title="escolher outro piloto">Trocar piloto</button>
+    <div class="seg" id="mode"><button data-m="race" class="on">Corrida do piloto</button><button data-m="pred">Duelos previstos pela rede</button></div>
+    <span class="lap" id="lap">Volta –</span>
+    <span class="mono" id="clock" style="color:var(--muted)"></span>
+    <span class="pill" id="status"></span>
+    <span class="speed" id="speed"></span>
+    <div class="ctls">
+      <label class="ctl">volta em <select id="spl"></select></label>
+      <label class="ctl">nos duelos <select id="spd"></select></label>
+      <label class="ctl">duelo abaixo de <select id="thr"></select></label>
+      <label class="ctl"><input type="checkbox" id="zoom"> zoom nos duelos</label>
+    </div>
+  </div>
+  <div id="stage">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="mapa da pista com a posição dos carros"></svg>
+    <div id="banners"></div>
+    <div id="flag"></div>
+    <div id="toasts"></div>
+    <div id="ticker"></div>
+    <div id="picker">
+      <h2>Escolha um piloto</h2>
+      <div class="hint" id="hint"></div>
+      <div id="grid"></div>
+    </div>
+  </div>
+  <div id="side">
+    <div class="card" id="me"></div>
+    <div class="card" id="order"></div>
+  </div>
+  <div id="tl"><canvas id="tlc"></canvas><div id="head"></div></div>
+  <div id="legend"></div>
+  <div id="fcwrap" title="clique para ir até essa volta"><svg id="fc" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="gap previsto pela rede e gap real"></svg></div>
+  <div id="fclegend">
+    <div><i style="border-color:#3987e5"></i>gap previsto (fim da volta da previsão)</div>
+    <div><i class="band"></i>faixa de 80%</div>
+    <div><i class="win"></i>janela prevista (da disputa ou da ultrapassagem)</div>
+    <div><i style="border-color:#79c0ff;border-top-style:dashed"></i>previsão da volta mais recente</div>
+    <div><i style="border-color:#e6edf3"></i>gap real (linha: suavizado em ~3 s; pontos: na linha de chegada)</div>
+    <div><i style="border-color:#d29922;border-top-style:dashed"></i>1 s: disputa · <span style="color:#3fb950">0 s: ultrapassagem</span></div>
+  </div>
+  <div id="chapters"><div class="sum" id="sum"></div><div id="chips"></div></div>
+</div>
+<script>
+const D = /*__DATA__*/null;
+const C = /*__CONFIG__*/null;
+const F = /*__DUELS__*/null;                 // duelos previstos pela rede (modeling/duel_replay.py), se houver
+const M = D.meta, N = D.drivers.length, NF = M.n, W = C.w, H = C.h;
+const NO_GAP = 32767, HIDE = 65535;
+const SVGNS = "http://www.w3.org/2000/svg";
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 1) => v.toFixed(d).replace(".", ",");
+
+// ------------------------------------------------------------------ dados
+function decode(b64, T) {
+  const s = atob(b64), u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return new T(u.buffer);
+}
+const ORDER = decode(D.order, Uint8Array), IV = decode(D.interval, Int16Array), XY = decode(D.xy, Uint16Array);
+const POS = new Uint8Array(NF * N);
+for (let j = 0; j < NF; j++) for (let p = 0; p < N; p++) POS[j * N + ORDER[j * N + p]] = p;
+const INPIT = new Uint8Array(NF * N);
+D.drivers.forEach((d, i) => {
+  for (const [a, b] of D.pits[d.tla] || []) {
+    const j0 = Math.max(0, Math.ceil((a - M.t0) / M.dt)), j1 = Math.min(NF - 1, Math.floor((b - M.t0) / M.dt));
+    for (let j = j0; j <= j1; j++) INPIT[j * N + i] = 1;
+  }
+});
+const ST_T = D.status.map(s => s[0]), ST_C = D.status.map(s => s[1]);
+function statusAt(t) {
+  let lo = 0, hi = ST_T.length - 1, k = 0;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (ST_T[m] <= t) { k = m; lo = m + 1; } else hi = m - 1; }
+  return ST_C[k];
+}
+const STATUS = new Array(NF);
+for (let j = 0; j < NF; j++) STATUS[j] = statusAt(M.t0 + j * M.dt);
+const frameOf = t => Math.min(NF - 1, Math.max(0, Math.round((t - M.t0) / M.dt)));
+const T_A = M.start - 6, T_B = M.chequered + 25;
+const IDX = {};
+D.drivers.forEach((d, i) => { IDX[d.tla] = i; });
+
+// progresso (voltas completas + fração) de cada carro: dá o gap entre dois carros quaisquer
+const PROG = D.progress ? decode(D.progress, Float32Array) : null;
+function progAt(i, t) {
+  const k = (t - M.t0) / M.dt, k0 = Math.max(0, Math.min(NF - 2, Math.floor(k))), a = Math.min(1, Math.max(0, k - k0));
+  return PROG[k0 * N + i] + (PROG[(k0 + 1) * N + i] - PROG[k0 * N + i]) * a;
+}
+function timeAt(i, p) {                      // instante em que o carro i tinha progresso p (o progresso só cresce)
+  let lo = 0, hi = NF - 1;
+  if (PROG[i] >= p) return M.t0;
+  if (PROG[hi * N + i] < p) return M.t0 + hi * M.dt;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (PROG[m * N + i] < p) lo = m; else hi = m; }
+  const p0 = PROG[lo * N + i], p1 = PROG[hi * N + i];
+  return M.t0 + (lo + (p1 > p0 ? (p - p0) / (p1 - p0) : 1)) * M.dt;
+}
+function pairGap(b, a, t) {                  // gap do carro b para o a, em segundos (negativo: b já passou a)
+  const pb = progAt(b, t), pa = progAt(a, t);
+  return pb <= pa ? t - timeAt(a, pb) : -(t - timeAt(b, pa));
+}
+const FLAG = {"2": ["Bandeira amarela", "var(--amber)"], "4": ["Safety car", "var(--amber)"],
+              "5": ["Bandeira vermelha", "var(--red)"], "6": ["VSC", "var(--amber)"], "7": ["Fim do VSC", "var(--amber)"]};
+
+function lapAt(i, t) {                       // volta em que o piloto i está no instante t
+  const L = D.laps[D.drivers[i].tla];
+  let k = -1;
+  for (let q = 0; q < L.start.length; q++) if (L.start[q] != null && L.start[q] <= t) k = q;
+  return k < 0 ? 1 : Math.min(L.lap[k], M.total_laps);
+}
+function tyreAt(i, t) {
+  const L = D.laps[D.drivers[i].tla];
+  let k = 0;
+  for (let q = 0; q < L.start.length; q++) if (L.start[q] != null && L.start[q] <= t) k = q;
+  return {compound: L.compound[k], life: L.life[k]};
+}
+function stopsBefore(i, t) { return (D.pits[D.drivers[i].tla] || []).filter(w => w[0] <= t && w[0] > M.start + 5).length; }
+const retiredAt = i => D.drivers[i].finished ? null : D.drivers[i].last;
+
+// ------------------------------------------------------------------ duelos do piloto escolhido
+function computeDuels(sel, thr) {
+  const lim = Math.round(thr * 100);
+  const att = new Int16Array(NF).fill(-1), def = new Int16Array(NF).fill(-1);
+  const gA = new Float32Array(NF), gD = new Float32Array(NF), on = new Uint8Array(NF);
+  for (let j = 0; j < NF; j++) {
+    const t = M.t0 + j * M.dt;
+    if (t < M.start || t > M.chequered) continue;
+    if (STATUS[j] !== "1" && STATUS[j] !== "2") continue;      // SC, VSC e bandeira vermelha não contam
+    if (INPIT[j * N + sel]) continue;
+    const p = POS[j * N + sel];
+    if (p > 0) {
+      const a = ORDER[j * N + p - 1], g = IV[j * N + sel];
+      if (g >= 0 && g < lim && g !== NO_GAP && !INPIT[j * N + a]) { att[j] = a; gA[j] = g / 100; }
+    }
+    if (p < N - 1) {
+      const b = ORDER[j * N + p + 1], g = IV[j * N + b];
+      if (g >= 0 && g < lim && g !== NO_GAP && !INPIT[j * N + b]) { def[j] = b; gD[j] = g / 100; }
+    }
+    on[j] = att[j] >= 0 || def[j] >= 0;
+  }
+  const runs = [];
+  let s0 = -1;
+  for (let j = 0; j <= NF; j++) {
+    const v = j < NF && on[j];
+    if (v && s0 < 0) s0 = j;
+    if (!v && s0 >= 0) { runs.push([s0, j]); s0 = -1; }
+  }
+  const merged = [];
+  for (const r of runs) {
+    const last = merged[merged.length - 1];
+    if (last && (r[0] - last[1]) * M.dt <= C.merge) last[1] = r[1]; else merged.push([r[0], r[1]]);
+  }
+  const segs = [];
+  for (const [a, b] of merged) {
+    if ((b - a) * M.dt < C.min_duel) continue;
+    const cnt = {};
+    let mg = 99;
+    for (let j = a; j < b; j++) {
+      if (att[j] >= 0) { cnt["A" + att[j]] = (cnt["A" + att[j]] || 0) + 1; mg = Math.min(mg, gA[j]); }
+      if (def[j] >= 0) { cnt["D" + def[j]] = (cnt["D" + def[j]] || 0) + 1; mg = Math.min(mg, gD[j]); }
+    }
+    const top = Object.entries(cnt).sort((x, y) => y[1] - x[1])[0][0];
+    const jEnd = Math.min(NF - 1, b);
+    const p0 = POS[a * N + sel] + 1, p1 = POS[jEnd * N + sel] + 1;
+    // trocas de posição dentro do duelo (a nova posição precisa durar 3 s)
+    let swaps = 0, cur = p0 - 1;
+    const hold = Math.round(3 / M.dt);
+    for (let j = a + 1; j <= jEnd; j++) {
+      const p = POS[j * N + sel];
+      if (p === cur) continue;
+      let stable = true;
+      for (let q = j; q < Math.min(NF, j + hold); q++) if (POS[q * N + sel] !== p) { stable = false; break; }
+      if (stable) { swaps++; cur = p; }
+    }
+    segs.push({j0: a, j1: b, t0: M.t0 + a * M.dt, t1: M.t0 + b * M.dt, rival: +top.slice(1),
+               role: top[0] === "A" ? "ataque" : "defesa", minGap: mg, p0, p1, swaps,
+               outcome: p1 < p0 ? "ganhou" : p1 > p0 ? "perdeu" : swaps ? "trocou" : "manteve"});
+  }
+  const seg = new Int16Array(NF).fill(-1);
+  segs.forEach((s, k) => { for (let j = s.j0; j < s.j1; j++) seg[j] = k; });
+  return {segs, seg, att, def, gA, gD};
+}
+
+function outcomeText(s, sel) {
+  const me = D.drivers[sel].tla, rv = D.drivers[s.rival].tla;
+  if (s.outcome === "ganhou") return `${me} ganhou a P${s.p1}` + (s.role === "ataque" ? ` de ${rv}` : "");
+  if (s.outcome === "perdeu") return `${me} perdeu a P${s.p0}` + (s.role === "defesa" ? ` para ${rv}` : "");
+  if (s.outcome === "trocou") return `${me} trocou de posição ${s.swaps} vezes com ${rv} e segue P${s.p0}`;
+  return s.role === "defesa" ? `${me} segurou ${rv} na P${s.p0}` : `${me} não passou ${rv}; segue P${s.p0}`;
+}
+
+// eventos que viram aviso na tela quando o replay passa por eles
+function buildEvents(sel, duels) {
+  const ev = [];
+  const me = D.drivers[sel].tla;
+  ev.push({t: M.start, cls: "info", text: "Largada"});
+  for (let k = 1; k < D.status.length; k++) {
+    const [t, c] = D.status[k], prev = D.status[k - 1][1];
+    if (t < M.start || t > M.chequered) continue;
+    if (c === "4") ev.push({t, cls: "flag", text: "Safety car na pista"});
+    if (c === "6") ev.push({t, cls: "flag", text: "Virtual safety car"});
+    if (c === "5") ev.push({t, cls: "bad", text: "Bandeira vermelha"});
+    if (c === "1" && ["4", "5", "6", "7"].includes(prev)) ev.push({t, cls: "good", text: "Pista liberada"});
+  }
+  ev.push({t: M.chequered, cls: "info", text: `Bandeira quadriculada: ${D.drivers[0].tla} vence`});
+  for (const s of duels.segs) ev.push({t: s.t1, cls: s.outcome === "ganhou" ? "good" : s.outcome === "perdeu" ? "bad" : s.outcome === "trocou" ? "flag" : "info",
+                                       text: "Fim do duelo: " + outcomeText(s, sel)});
+  for (const [a, b] of D.pits[me] || []) {
+    if (a > M.start + 5) ev.push({t: a, cls: "info", text: `${me} entra no box`});
+    ev.push({t: b, cls: "info", text: `${me} sai do box`, after: true});
+  }
+  // ultrapassagens na pista, com bandeira verde (a nova posição precisa durar 3 s)
+  let cur = POS[frameOf(M.start) * N + sel];
+  const hold = Math.round(3 / M.dt);
+  for (let j = frameOf(M.start) + 1; j < frameOf(M.chequered); j++) {
+    const p = POS[j * N + sel];
+    if (p === cur) continue;
+    let stable = true;
+    for (let q = j; q < Math.min(NF, j + hold); q++) if (POS[q * N + sel] !== p) { stable = false; break; }
+    if (!stable) continue;
+    const green = STATUS[j] === "1" || STATUS[j] === "2";
+    const other = ORDER[j * N + (p < cur ? p + 1 : p - 1)];
+    if (green && !INPIT[j * N + sel] && !INPIT[j * N + other] && Math.abs(p - cur) === 1) {
+      const ot = D.drivers[other].tla;
+      ev.push({t: M.t0 + j * M.dt, cls: p < cur ? "good" : "bad",
+               text: p < cur ? `${me} passa ${ot}: P${p + 1}` : `${ot} passa ${me}: ${me} cai para P${p + 1}`});
+    }
+    cur = p;
+  }
+  return ev.sort((a, b) => a.t - b.t);
+}
+
+// ------------------------------------------------------------------ mapa
+const svg = $("map");
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  (parent || svg).appendChild(e);
+  return e;
+}
+const pts = C.track.map(p => p.join(",")).join(" ");
+el("polyline", {points: pts, fill: "none", stroke: "#21262d", "stroke-width": 22, "stroke-linejoin": "round", "stroke-linecap": "round"});
+if (C.pit && C.pit.length) el("polyline", {points: C.pit.map(p => p.join(",")).join(" "), fill: "none", stroke: "#30363d",
+                                           "stroke-width": 5, "stroke-dasharray": "6 6", "stroke-linecap": "round"});
+const trackLine = el("polyline", {points: pts, fill: "none", stroke: "#6e7681", "stroke-width": 9, "stroke-linejoin": "round", "stroke-linecap": "round"});
+el("line", {x1: C.finish[0][0], y1: C.finish[0][1], x2: C.finish[1][0], y2: C.finish[1][1], stroke: "#e6edf3", "stroke-width": 4});
+const cornerText = C.corners.map(([n, x, y]) => {
+  const t = el("text", {x, y: y + 5, fill: "#7d8590", "font-size": 15, "text-anchor": "middle"});
+  t.textContent = n;
+  return t;
+});
+const carLayer = el("g", {});
+const cars = D.drivers.map(d => {
+  const g = el("g", {}, carLayer);
+  const c = el("circle", {r: 10, fill: d.color, stroke: "#0d1117", "stroke-width": 2.5}, g);
+  const t = el("text", {fill: "#e6edf3", "font-weight": 700, "paint-order": "stroke", stroke: "#0d1117"}, g);
+  t.textContent = d.tla;
+  return {g, c, t};
+});
+const A = C.affine;
+function carXY(i, t) {
+  const k = (t - M.t0) / M.dt_xy, k0 = Math.max(0, Math.min(M.n_xy - 2, Math.floor(k))), a = Math.min(1, Math.max(0, k - k0));
+  const o0 = (k0 * N + i) * 2, o1 = ((k0 + 1) * N + i) * 2;
+  let x0 = XY[o0], y0 = XY[o0 + 1], x1 = XY[o1], y1 = XY[o1 + 1];
+  if (x0 === HIDE && x1 === HIDE) return null;
+  if (x0 === HIDE) { x0 = x1; y0 = y1; }
+  if (x1 === HIDE) { x1 = x0; y1 = y0; }
+  // int16 guardado como uint16
+  const sx = v => (v > 32767 ? v - 65536 : v);
+  const x = sx(x0) + (sx(x1) - sx(x0)) * a, y = sx(y0) + (sx(y1) - sx(y0)) * a;
+  return [A[0] * x + A[1] * y + A[4], A[2] * x + A[3] * y + A[5]];
+}
+
+// ------------------------------------------------------------------ estado e controles
+const S = {mode: "race", ep: null, epStart: 0, epEnd: 0, epCurve: [], sel: null, t: T_A, playing: false, rate: M.lap_ref / C.sec_per_lap, cam: {x: 0, y: 0, w: W, h: H},
+           duels: null, events: [], evIdx: 0, lastWall: null, lastSide: 0, ticker: null, tickerUntil: 0};
+function fillSelect(id, values, cur, label) {
+  const s = $(id);
+  s.innerHTML = values.map(v => `<option value="${v}" ${v === cur ? "selected" : ""}>${label(v)}</option>`).join("");
+}
+fillSelect("spl", [1, 2, 3, 4], C.sec_per_lap, v => `${v} s`);
+fillSelect("spd", [3, 4, 6, 8, 12], C.sec_per_lap_duel, v => `${v} s/volta`);
+fillSelect("thr", [0.3, 0.5, 0.8, 1, 1.5, 2], C.duel_gap, v => `${fmt(v)} s`);
+$("zoom").checked = C.zoom;
+const secPerLap = () => +$("spl").value, secPerLapDuel = () => +$("spd").value;
+$("thr").onchange = () => { if (S.sel != null) select(S.sel, false); };
+$("spl").onchange = $("spd").onchange = () => { if (S.sel != null) drawTimeline(); };
+
+function select(i, play = true) {
+  S.sel = i;
+  S.duels = computeDuels(i, +$("thr").value);
+  if (S.mode === "pred") {                    // modo dos duelos previstos: primeiro escolhe o duelo
+    S.ep = null;
+    S.events = [];
+    $("picker").style.display = "none";
+    setPlaying(false);
+    drawEpisodes();
+    render(0);
+    return;
+  }
+  S.events = buildEvents(i, S.duels);
+  S.evIdx = S.events.findIndex(e => e.t > S.t);
+  if (S.evIdx < 0) S.evIdx = S.events.length;
+  $("picker").style.display = "none";
+  drawTimeline();
+  drawChips();
+  if (play) setPlaying(true);
+  render(0);
+}
+function setPlaying(v) {
+  if (v && (S.sel == null || (S.mode === "pred" && !S.ep))) return;
+  if (S.mode === "pred") { if (v && S.t >= S.epEnd - 0.5) seek(S.epStart); }
+  else if (v && S.t >= T_B - 0.5) seek(T_A);
+  S.playing = v;
+  $("play").textContent = v ? "❚❚" : "▶";
+}
+function seek(t) {
+  S.t = Math.max(T_A, Math.min(T_B, t));
+  S.evIdx = S.events.findIndex(e => e.t > S.t);
+  if (S.evIdx < 0) S.evIdx = S.events.length;
+  $("toasts").innerHTML = "";
+  render(0);
+}
+$("play").onclick = () => setPlaying(!S.playing);
+$("pick").onclick = () => { setPlaying(false); $("picker").style.display = "flex"; };
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!S.playing); }
+  if (e.code === "ArrowRight") seek(S.t + M.lap_ref);
+  if (e.code === "ArrowLeft") seek(S.t - M.lap_ref);
+});
+
+// seletor de piloto e modo
+const EP = F ? F.episodes : [];
+const epsOf = tla => EP.filter(e => e.behind === tla || e.ahead === tla);
+const RACE_HINT = `${M.event} ${M.year}: a corrida em time-lapse (cada volta em poucos segundos), mais lenta e com zoom ` +
+  `quando o piloto escolhido está a menos do corte (1 s, por padrão) do carro da frente ou de trás.` +
+  (M.dns && M.dns.length ? ` Não largou: ${M.dns.join(", ")}.` : "");
+function predHint() {
+  const se = F.summary_episodes, nao = EP.filter(e => e.kind === "inicio" && e.outcome.cls === "nao_aconteceu").length;
+  const so = F.summary_ongoing_origins, b = F.brier_ongoing;
+  return `Duelos previstos pela rede (${F.run}). Ao fim de cada volta, para um carro a 1–5 s do da frente, a rede projeta o gap ` +
+    `das 10 voltas seguintes; o duelo é previsto quando a chance de chegar a menos de 1 s passa de 50%. Em ${M.event} ` +
+    `${M.year} foram ${se.n} duelos previstos (a partir da volta ${F.first_origin}, quando a gravação começou): ${se.aconteceram} ` +
+    `aconteceram, ${nao} não e ${se.interrompidos} ${se.interrompidos === 1 ? "foi interrompido" : "foram interrompidos"} por parada ou SC. ` +
+    `Nos duelos já em curso (menos de 1 s), a rede prevê se o de trás passa: acertou ${Math.round(100 * so.acerto)}% das voltas, ` +
+    `e o carro de trás passou em ${Math.round(100 * b.taxa_de_ultrapassagem)}% delas. A rede prevê o ritmo de cada piloto sem ` +
+    `saber do outro (ar sujo, DRS), então essa chance não é melhor que a média.`;
+}
+function fillGrid() {
+  const pred = S.mode === "pred";
+  $("grid").innerHTML = D.drivers.map((d, i) => {
+    const n = epsOf(d.tla).length;
+    return `<button data-i="${i}" class="${pred && !n ? "none" : ""}"><span class="p mono">${d.finished ? i + 1 : "ab"}</span>` +
+      `<span class="bar" style="background:${d.color}"></span><span class="t">${d.tla}</span><span class="n">${d.name}</span>` +
+      (pred ? `<span class="cnt">${n ? `${n} ${n > 1 ? "duelos" : "duelo"}` : ""}</span>` : "") + `</button>`;
+  }).join("");
+  $("grid").querySelectorAll("button").forEach(b => b.onclick = () => select(+b.dataset.i));
+  $("hint").innerHTML = pred ? predHint() : RACE_HINT;
+  $("picker").querySelector("h2").textContent = pred ? "Escolha um piloto e depois um duelo previsto" : "Escolha um piloto";
+}
+function setMode(m) {
+  setPlaying(false);
+  S.mode = m;
+  S.ep = null;
+  $("mode").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  const pred = m === "pred";
+  $("tl").style.display = $("legend").style.display = pred ? "none" : "";
+  $("fcwrap").style.display = $("fclegend").style.display = pred ? "block" : "none";
+  $("toasts").innerHTML = "";
+  fillGrid();
+  if (S.sel != null) select(S.sel, false);
+  else render(0);
+}
+if (!F || !PROG) $("mode").style.display = "none";
+$("mode").querySelectorAll("button").forEach(b => b.onclick = () => setMode(b.dataset.m));
+fillGrid();
+
+// ------------------------------------------------------------------ linha do tempo
+function drawTimeline() {
+  const cv = $("tlc"), r = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * r; cv.height = h * r;
+  const g = cv.getContext("2d");
+  g.scale(r, r);
+  g.clearRect(0, 0, w, h);
+  const X = t => (t - T_A) / (T_B - T_A) * w;
+  for (let k = 0; k < D.status.length; k++) {                  // SC, VSC e vermelha
+    const [t, c] = D.status[k], t2 = k + 1 < D.status.length ? D.status[k + 1][0] : T_B;
+    if (!["4", "5", "6", "7"].includes(c)) continue;
+    g.fillStyle = c === "5" ? "rgba(248,81,73,.35)" : "rgba(210,153,34,.28)";
+    g.fillRect(X(t), 0, Math.max(1, X(t2) - X(t)), h);
+  }
+  if (S.duels) {
+    g.fillStyle = "#f78166";
+    for (const s of S.duels.segs) g.fillRect(X(s.t0), h * 0.32, Math.max(1.5, X(s.t1) - X(s.t0)), h * 0.36);
+  }
+  if (S.sel != null) {
+    g.fillStyle = "#2f81f7";
+    for (const [a, b] of D.pits[D.drivers[S.sel].tla] || []) if (a > M.start + 5) g.fillRect(X(a) - 1, 2, 3, h - 4);
+  }
+  g.fillStyle = "#7d8590";
+  g.font = "10.5px ui-monospace, Consolas, monospace";
+  const L = D.laps[D.drivers[0].tla];
+  L.lap.forEach((lap, q) => {
+    if (lap % 10 !== 0 || L.start[q] == null) return;
+    g.fillRect(X(L.start[q]), h - 7, 1, 7);
+    g.fillText(`V${lap}`, X(L.start[q]) + 3, h - 2);
+  });
+}
+function tlSeek(e) {
+  const r = $("tl").getBoundingClientRect();
+  seek(T_A + (e.clientX - r.left) / r.width * (T_B - T_A));
+}
+$("tl").addEventListener("mousedown", e => {
+  tlSeek(e);
+  const mv = ev => tlSeek(ev), up = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", up); };
+  window.addEventListener("mousemove", mv);
+  window.addEventListener("mouseup", up);
+});
+window.addEventListener("resize", () => S.sel != null && drawTimeline());
+$("legend").innerHTML = `<div><i style="background:#f78166"></i>duelos do piloto</div>` +
+  `<div><i style="background:rgba(210,153,34,.5)"></i>SC / VSC</div><div><i style="background:#2f81f7"></i>box</div>`;
+
+function drawChips() {
+  const segs = S.duels.segs, me = D.drivers[S.sel].tla;
+  const total = segs.reduce((a, s) => a + s.t1 - s.t0, 0);
+  const green = STATUS.filter((c, j) => (c === "1" || c === "2") && M.t0 + j * M.dt >= M.start && M.t0 + j * M.dt <= M.chequered).length * M.dt;
+  $("sum").innerHTML = segs.length
+    ? `${me}: ${segs.length} duelo${segs.length > 1 ? "s" : ""}, ${fmt(total / 60)} min a menos de ${fmt(+$("thr").value)} s ` +
+      `de outro carro (${Math.round(100 * total / Math.max(green, 1))}% do tempo com bandeira verde). Clique num duelo para ir até ele.`
+    : `${me} não ficou a menos de ${fmt(+$("thr").value)} s de outro carro com bandeira verde.`;
+  $("chips").innerHTML = segs.map((s, k) => {
+    const rv = D.drivers[s.rival].tla, laps = lapAt(S.sel, s.t0) === lapAt(S.sel, s.t1) ? `V${lapAt(S.sel, s.t0)}` : `V${lapAt(S.sel, s.t0)}–${lapAt(S.sel, s.t1)}`;
+    const res = s.outcome === "ganhou" ? `ganhou P${s.p1}` : s.outcome === "perdeu" ? `perdeu P${s.p0}`
+              : s.outcome === "trocou" ? `${s.swaps} trocas, segue P${s.p0}` : `manteve P${s.p0}`;
+    return `<span class="chip ${s.outcome}" data-k="${k}" title="${outcomeText(s, S.sel)} · menor gap ${fmt(s.minGap, 2)} s">` +
+           `${laps} · ${s.role === "ataque" ? "atrás de" : "à frente de"} <b>${rv}</b> · ${res}</span>`;
+  }).join("");
+  $("chips").querySelectorAll(".chip").forEach(c => c.onclick = () => { seek(segs[+c.dataset.k].t0 - 4); setPlaying(true); });
+}
+
+// ------------------------------------------------------------------ duelos previstos pela rede
+function winText(f) {
+  if (f.early == null) return "–";
+  if (f.late_open) return `da volta ${f.t + f.early} em diante`;
+  return f.early === f.late ? `volta ${f.t + f.early}` : `voltas ${f.t + f.early}–${f.t + f.late}`;
+}
+function verdict(e) {
+  const f = e.forecast, o = e.outcome;
+  if (e.kind === "em_curso") {
+    const minGap = fmt(Math.min(...o.path), 2), pass = f.likely != null;
+    if (o.cls === "interrompido") return ["off", `Sem desfecho: ${o.stop} (a conta supõe pista livre e ninguém parando)`];
+    if (o.cls === "passou" && pass) return o.inside
+      ? ["ok", `✔ Previsão certa: ${e.behind} passou ${e.ahead} na volta ${o.pass_lap}, dentro da janela (${winText(f)})`]
+      : ["mid", `≈ ${e.behind} passou ${e.ahead} na volta ${o.pass_lap}, mas fora da janela (${winText(f)})`];
+    if (o.cls === "passou") return ["no", `✘ A rede não previa ultrapassagem (${Math.round(100 * f.p)}% de chance), mas ${e.behind} passou na volta ${o.pass_lap}`];
+    const n = o.path.length - 1;
+    if (pass) return ["no", `✘ A rede previa ultrapassagem na volta ${f.t + f.likely}, mas ${e.ahead} segurou ${e.behind} nas ${n} voltas (menor gap na linha: ${minGap} s)`];
+    return ["ok", `✔ Previsão certa: ${e.ahead} segurou ${e.behind} nas ${n} voltas (menor gap na linha: ${minGap} s)`];
+  }
+  if (o.cls === "aconteceu") return o.inside
+    ? ["ok", `✔ Aconteceu: a disputa começou na volta ${o.lap}, dentro da janela (${winText(f)})`]
+    : ["mid", `≈ Aconteceu na volta ${o.lap}, mas fora da janela (${winText(f)})`];
+  if (o.cls === "nao_aconteceu") {
+    const m = Math.min(...o.path), k = o.path.indexOf(m);
+    return ["no", `✘ Não aconteceu: o menor gap na linha foi ${fmt(m, 2)} s, na volta ${f.t + k}`];
+  }
+  return ["off", `Sem desfecho: ${o.stop} (a conta supõe pista livre e ninguém parando)`];
+}
+function drawEpisodes() {
+  const tla = D.drivers[S.sel].tla, eps = epsOf(tla);
+  $("sum").innerHTML = eps.length
+    ? `${tla}: ${eps.length} ${eps.length > 1 ? "duelos previstos" : "duelo previsto"} pela rede, como carro de trás ou da frente. ` +
+      `Clique num para ver a previsão e o que aconteceu.`
+    : `A rede não previu duelo de ${tla} a partir da volta ${F.first_origin}. Em "Trocar piloto", os pilotos com duelos previstos ` +
+      `aparecem com a contagem.`;
+  const groups = [["inicio", e => e.outcome.cls === "aconteceu", "Aconteceram"],
+                  ["inicio", e => e.outcome.cls === "nao_aconteceu", "Não aconteceram"],
+                  ["inicio", e => e.outcome.cls === "interrompido", "Sem desfecho (parada ou safety car antes)"],
+                  ["em_curso", e => e.outcome.correct === true, "A rede acertou"],
+                  ["em_curso", e => e.outcome.correct === false, "A rede errou"],
+                  ["em_curso", e => e.outcome.correct == null, "Sem desfecho (parada ou safety car antes)"]];
+  const heads = {inicio: "Duelos que começam: o de trás a 1–5 s; a rede prevê quando ele chega a menos de 1 s",
+                 em_curso: "Duelos em curso: o de trás já a menos de 1 s; a rede prevê se ele passa"};
+  let lastKind = null;
+  $("chips").innerHTML = groups.map(([kind, test, title]) => {
+    const g = eps.filter(e => e.kind === kind && test(e));
+    if (!g.length) return "";
+    const head = kind !== lastKind ? `<div class="group" style="width:100%;color:#e6edf3;font-weight:600;margin-top:12px">${heads[kind]}</div>` : "";
+    lastKind = kind;
+    return head + `<div class="group" style="width:100%">${title} (${g.length})</div>` + g.map(e => {
+      const f = e.forecast, o = e.outcome, k = EP.indexOf(e);
+      if (e.kind === "em_curso") {
+        const net = f.likely != null ? `rede: passa na V${f.t + f.likely}` : `rede: não passa (${Math.round(100 * f.p)}%)`;
+        const real = o.cls === "passou" ? `passou na V${o.pass_lap}` : o.cls === "segurou" ? "segurou" : "sem desfecho";
+        const look = o.correct === true ? (o.cls === "passou" && !o.inside ? "trocou" : "ganhou") : o.correct === false ? "perdeu" : "";
+        return `<span class="chip ${look}" data-e="${k}" title="${f.text}">V${f.t} · <b>${e.behind}</b> atrás de <b>${e.ahead}</b> a ` +
+               `${fmt(f.gap0, 2)} s · ${net} · ${o.correct === true ? "✔" : o.correct === false ? "✘" : ""} ${real}` +
+               `${f.live ? "" : ' <span class="live">(refeita)</span>'}</span>`;
+      }
+      const res = o.cls === "aconteceu" ? (o.inside ? `✔ disputa na V${o.lap}` : `≈ disputa na V${o.lap}, fora da janela`)
+                : o.cls === "nao_aconteceu" ? "✘ não aconteceu" : "sem desfecho";
+      const look = o.cls === "aconteceu" ? (o.inside ? "ganhou" : "trocou") : o.cls === "nao_aconteceu" ? "perdeu" : "";
+      return `<span class="chip ${look}" data-e="${k}" title="${f.text}">V${f.t} · <b>${e.behind}</b> → <b>${e.ahead}</b> a ` +
+             `${fmt(f.gap0)} s · prevista na V${f.t + f.likely} (${winText(f)}) · ${res}` +
+             `${f.live ? "" : ' <span class="live">(refeita)</span>'}</span>`;
+    }).join("");
+  }).join("");
+  $("chips").querySelectorAll(".chip").forEach(c => c.onclick = () => startEpisode(EP[+c.dataset.e]));
+  drawFC(S.t);
+}
+function startEpisode(e) {
+  S.ep = e;
+  const b = IDX[e.behind], a = IDX[e.ahead], f = e.forecast, o = e.outcome;
+  // até onde a conta foi (mais a volta que a interrompeu), no máximo as 10 voltas do horizonte
+  const lastK = Math.min(10, Math.max(1, o.path.length - 1 + (o.stop && o.stop !== "fim da corrida" ? 1 : 0)));
+  S.epStart = e.start - 4;
+  S.epEnd = Math.min(timeAt(b, f.t + lastK) + 3, T_B);
+  // gap real contínuo, suavizado em ~3 s: no meio da volta a distância tem ~0,1 s de ruído
+  const raw = [];
+  for (let t = e.start; t <= S.epEnd; t += 0.5) raw.push([progAt(b, t), pairGap(b, a, t)]);
+  S.epCurve = raw.map(([x], i) => {
+    const win = raw.slice(Math.max(0, i - 3), i + 4);
+    return [x, win.reduce((s, q) => s + q[1], 0) / win.length];
+  });
+  const lapEnd = L => timeAt(b, L);                         // fim da volta L do carro de trás
+  const ev = [];
+  if (f.early != null) ev.push({t: lapEnd(f.t + f.early - 1), cls: "flag",
+                                text: `Começa a janela prevista ${e.kind === "em_curso" ? "da ultrapassagem" : "da disputa"} (${winText(f)})`});
+  if (o.lap && e.kind === "inicio") ev.push({t: lapEnd(o.lap), cls: o.inside ? "good" : "flag",
+                      text: `Disputa: ${e.behind} a ${fmt(o.path[o.k], 2)} s de ${e.ahead} na linha, volta ${o.lap}`});
+  if (o.pass_lap) ev.push({t: lapEnd(o.pass_lap), cls: "good", text: `Ultrapassagem: ${e.behind} passa ${e.ahead} (volta ${o.pass_lap})`});
+  for (let k = 1; k < D.status.length; k++) {
+    const [t, c] = D.status[k];
+    if (t < e.start || t > S.epEnd) continue;
+    if (c === "4") ev.push({t, cls: "flag", text: "Safety car na pista"});
+    if (c === "6") ev.push({t, cls: "flag", text: "Virtual safety car"});
+    if (c === "5") ev.push({t, cls: "bad", text: "Bandeira vermelha"});
+  }
+  for (const who of [e.behind, e.ahead]) for (const [p0] of D.pits[who] || []) {
+    if (p0 > e.start && p0 < S.epEnd) ev.push({t: p0, cls: "info", text: `${who} entra no box`});
+  }
+  const [vc, vt] = verdict(e);
+  ev.push({t: S.epEnd - 2.5, cls: {ok: "good", mid: "flag", no: "bad", off: "info"}[vc], text: vt});
+  S.events = ev.sort((x, y) => x.t - y.t);
+  document.querySelectorAll("#chips .chip").forEach(c => c.classList.toggle("now", +c.dataset.e === EP.indexOf(e)));
+  seek(S.epStart);
+  setPlaying(true);
+}
+function projAt(f, k) {                      // gap previsto k voltas depois da previsão f (k fracionário)
+  const mu = [f.gap0, ...f.mu];
+  if (k <= 0) return f.gap0;
+  if (k >= mu.length - 1) return mu[mu.length - 1];
+  const k0 = Math.floor(k);
+  return mu[k0] + (mu[k0 + 1] - mu[k0]) * (k - k0);
+}
+function predSlow(t) {                       // mais devagar na janela prevista e com o gap real abaixo de 1 s
+  const e = S.ep, f = e.forecast, b = IDX[e.behind], a = IDX[e.ahead];
+  const k = progAt(b, t) - f.t;
+  const inWin = f.early != null && k > f.early - 1 && (f.late_open || k <= f.late) && k <= 10;
+  return t >= e.start && t <= S.epEnd && (inWin || Math.abs(pairGap(b, a, t)) < 1);
+}
+function latestUpdate(t) {                   // a previsão mais recente do par até a última volta completa
+  const e = S.ep, done = Math.floor(progAt(IDX[e.behind], t) + 1e-6);
+  return e.updates.filter(u => u.t <= done).pop() || e.forecast;
+}
+function predBanners(t) {
+  const e = S.ep, f = e.forecast, b = IDX[e.behind], a = IDX[e.ahead];
+  const x = progAt(b, t), lap = Math.min(Math.floor(x) + 1, M.total_laps), g = pairGap(b, a, t);
+  const u = latestUpdate(t);
+  const out = [`<div class="banner"><div class="k">Previsão da rede no fim da volta ${f.t}${f.live ? "" : " (refeita)"}</div>` +
+               `<div class="v">${e.behind} → ${e.ahead}: ${f.text}</div></div>`];
+  if (t >= e.start) {
+    out.push(`<div class="banner" style="border-left-color:#79c0ff"><div class="k">${e.behind} na volta ${lap}</div>` +
+             `<div class="v">gap real <span class="mono">${fmt(g, 2)} s</span> · previsto <span class="mono">${fmt(projAt(f, x - f.t), 2)} s</span>` +
+             (u.t > f.t ? `<br><span style="font-weight:400;font-size:13px">previsão da volta ${u.t}: ${u.text}</span>` : "") + `</div></div>`);
+  }
+  if (t >= S.epEnd - 2.5) {
+    const [vc, vt] = verdict(e);
+    out.push(`<div class="banner"><div class="v verdict ${vc}">${vt}</div></div>`);
+  }
+  return out;
+}
+function pairCard(t, j) {
+  const e = S.ep, b = IDX[e.behind], a = IDX[e.ahead];
+  const row = i => {
+    const d = D.drivers[i], ty = tyreAt(i, t), col = C.compounds[ty.compound] || "#e6edf3";
+    return `<div class="kv"><span><span style="color:${d.color}">▍</span>P${POS[j * N + i] + 1} ${d.tla}</span>` +
+           `<span><span class="tyre" style="border-color:${col};color:${col}">${(ty.compound || "?")[0]}</span>` +
+           `<span class="mono">${ty.life != null ? ty.life + " v" : ""}</span></span></div>`;
+  };
+  const [vc, vt] = verdict(e);
+  const sub = e.kind === "em_curso" ? "duelo em curso: o de trás tenta passar" : "o de trás tenta chegar a menos de 1 s do da frente";
+  return `<div class="big">${e.behind} → ${e.ahead}</div><div class="sub">${sub}</div>` +
+         row(b) + row(a) +
+         `<div class="kv"><span>gap agora</span><span class="mono">${fmt(pairGap(b, a, t), 2)} s</span></div>` +
+         `<div class="kv"><span>previsão</span><span class="mono">fim da V${e.forecast.t}</span></div>` +
+         (t >= S.epEnd - 2.5 ? `<div class="verdict ${vc}" style="font-size:12.5px;margin-top:6px">${vt}</div>` : "");
+}
+function drawFC(t) {
+  const el = $("fc"), e = S.ep;
+  if (!e) {
+    el.innerHTML = `<text x="12" y="28" fill="#7d8590" font-size="13">Escolha um piloto e um duelo previsto para ver o gap previsto pela rede contra o real.</text>`;
+    return;
+  }
+  const f = e.forecast, o = e.outcome, b = IDX[e.behind];
+  const w = el.clientWidth || 800, h = 190, pl = 44, pr = 14, pt = 12, pb = 24;
+  el.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  const x0 = f.t, x1 = f.t + 10;
+  const mu = [f.gap0, ...f.mu], sd = [0, ...f.sd];
+  const hi = mu.map((m, k) => m + 1.2816 * sd[k]), lo = mu.map((m, k) => m - 1.2816 * sd[k]);
+  const real = S.epCurve.map(c => c[1]);
+  const top = Math.min(Math.max(...hi, ...o.path, ...real, 1.6) * 1.08, Math.max(...mu, ...o.path, ...real, 1.5) + 0.8);
+  const bot = Math.max(-2.5, Math.min(-0.6, ...lo, ...o.path, ...real));
+  const X = v => pl + (w - pl - pr) * (v - x0) / (x1 - x0);
+  const Y = v => pt + (h - pt - pb) * (top - Math.max(bot, Math.min(top, v))) / (top - bot);
+  const line = pts => pts.map(([x, y]) => `${X(x).toFixed(1)},${Y(y).toFixed(1)}`).join(" ");
+  const xb = Math.max(x0, progAt(b, t));
+  let g = `<defs><clipPath id="fcclip"><rect x="${pl}" y="${pt}" width="${w - pl - pr}" height="${h - pt - pb}"/></clipPath></defs>`;
+  if (f.early != null) {
+    const a0 = X(f.t + f.early - 0.5), a1 = X(f.late_open ? x1 : Math.min(f.t + f.late + 0.5, x1));
+    g += `<rect x="${a0}" y="${pt}" width="${Math.max(a1 - a0, 2)}" height="${h - pt - pb}" fill="rgba(210,153,34,.15)"/>`;
+  }
+  for (const [v, col, lab] of [[1, "#d29922", "1 s"], [0, "#3fb950", "0 s"]]) {
+    g += `<line x1="${pl}" x2="${w - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="${col}" stroke-dasharray="5 4"/>` +
+         `<text x="${pl - 6}" y="${Y(v) + 4}" fill="${col}" font-size="11" text-anchor="end">${lab}</text>`;
+  }
+  const band = mu.map((_, k) => [f.t + k, hi[k]]).concat(mu.map((_, k) => [f.t + k, lo[k]]).reverse());
+  g += `<g clip-path="url(#fcclip)"><polygon points="${line(band)}" fill="rgba(57,135,229,.22)"/>`;
+  g += `<polyline points="${line(mu.map((m, k) => [f.t + k, m]))}" fill="none" stroke="#3987e5" stroke-width="2.2"/>`;
+  const u = latestUpdate(t);
+  if (u.t > f.t) g += `<polyline points="${line([u.gap0, ...u.mu].map((m, k) => [u.t + k, m]).filter(q => q[0] <= x1))}" ` +
+                      `fill="none" stroke="#79c0ff" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  const seen = S.epCurve.filter(c => c[0] >= x0 && c[0] <= xb);
+  if (seen.length > 1) g += `<polyline points="${line(seen)}" fill="none" stroke="#e6edf3" stroke-width="1.6"/>`;
+  o.path.forEach((v, k) => {
+    if (f.t + k <= xb + 1e-6) g += `<circle cx="${X(f.t + k)}" cy="${Y(v)}" r="3.4" fill="#e6edf3" stroke="#0d1117"/>`;
+  });
+  g += `</g>`;
+  if (xb <= x1) g += `<line x1="${X(xb)}" x2="${X(xb)}" y1="${pt}" y2="${h - pb}" stroke="#e6edf3" stroke-opacity=".45"/>`;
+  for (let L = x0; L <= x1; L++) {
+    g += `<text x="${X(L)}" y="${h - 7}" fill="${L === x0 ? "#e6edf3" : "#7d8590"}" font-size="11" font-weight="${L === x0 ? 700 : 400}" ` +
+         `text-anchor="middle">${L}</text>`;
+  }
+  g += `<text x="${pl - 6}" y="${pt + 9}" fill="#7d8590" font-size="11" text-anchor="end">${fmt(top, 1)} s</text>`;
+  g += `<text x="${w - pr}" y="${pt + 10}" fill="#7d8590" font-size="11" text-anchor="end">gap de ${e.behind} para ${e.ahead}, por volta de ${e.behind}</text>`;
+  el.innerHTML = g;
+}
+$("fcwrap").addEventListener("click", ev => {
+  if (!S.ep) return;
+  const r = $("fc").getBoundingClientRect(), w = r.width, pl = 44, pr = 14;
+  const x = S.ep.forecast.t + (ev.clientX - r.left - pl) / (w - pl - pr) * 10;
+  seek(Math.max(S.epStart, Math.min(S.epEnd, timeAt(IDX[S.ep.behind], x))));
+});
+window.addEventListener("resize", () => S.mode === "pred" && drawFC(S.t));
+
+// ------------------------------------------------------------------ desenho de um instante
+function gapText(j, i) {
+  const t = M.t0 + j * M.dt, ret = retiredAt(i);
+  if (ret != null && t > ret) return ["abandono", ""];
+  if (D.drivers[i].finished && t > D.drivers[i].last) return ["🏁", ""];
+  if (INPIT[j * N + i]) return ["box", ""];
+  if (POS[j * N + i] === 0) return ["líder", ""];
+  const g = IV[j * N + i];
+  if (g === NO_GAP) return ["", ""];
+  if (g < 0) return [`+${-g} V`, ""];
+  return [`+${fmt(g / 100, g < 1000 ? 2 : 1)}`, g < 100 ? "close" : ""];
+}
+function showToast(e) {
+  const box = $("toasts"), d = document.createElement("div");
+  d.className = "toast " + e.cls;
+  d.textContent = e.text;
+  box.appendChild(d);
+  while (box.children.length > 3) box.removeChild(box.firstChild);
+  setTimeout(() => d.remove(), 3200);
+}
+function render(dtw) {
+  const t = S.t, j = frameOf(t), sel = S.sel;
+  const code = STATUS[j];
+  trackLine.setAttribute("stroke", code === "5" ? "#f85149" : ["4", "6", "7"].includes(code) ? "#d29922" : "#6e7681");
+
+  // duelo agora (o trecho, já juntado e filtrado, e os rivais deste instante)
+  const pred = S.mode === "pred" && S.ep != null;
+  const segK = sel != null && !pred ? S.duels.seg[j] : -1;
+  const rivals = new Set();
+  if (pred) [IDX[S.ep.behind], IDX[S.ep.ahead]].forEach(i => { if (i !== sel) rivals.add(i); });
+  if (segK >= 0) {
+    if (S.duels.att[j] >= 0) rivals.add(S.duels.att[j]);
+    if (S.duels.def[j] >= 0) rivals.add(S.duels.def[j]);
+    if (!rivals.size) rivals.add(S.duels.segs[segK].rival);
+  }
+
+  // câmera: segue o par em duelo, ou mostra a pista inteira
+  const pos = D.drivers.map((_, i) => carXY(i, t));
+  let target = {x: 0, y: 0, w: W, h: H};
+  if ((segK >= 0 || pred) && $("zoom").checked && pos[sel]) {
+    const group = [sel, ...rivals].map(i => pos[i]).filter(Boolean);
+    const cx = group.reduce((a, p) => a + p[0], 0) / group.length, cy = group.reduce((a, p) => a + p[1], 0) / group.length;
+    const span = Math.max(...group.map(p => Math.hypot(p[0] - cx, p[1] - cy)));
+    const w = Math.min(W, Math.max(C.zoom_width, span * 3.2 + 120)), h = w * H / W;
+    target = {x: cx - w / 2, y: cy - h / 2, w, h};
+  }
+  const cam = S.cam, kPos = dtw ? Math.min(1, dtw * (segK >= 0 || pred ? 9 : 3)) : 1, kZoom = dtw ? Math.min(1, dtw * 2.5) : 1;
+  const cx0 = cam.x + cam.w / 2, cy0 = cam.y + cam.h / 2, tcx = target.x + target.w / 2, tcy = target.y + target.h / 2;
+  const nw = cam.w + (target.w - cam.w) * kZoom, ncx = cx0 + (tcx - cx0) * kPos, ncy = cy0 + (tcy - cy0) * kPos;
+  S.cam = {w: nw, h: nw * H / W, x: ncx - nw / 2, y: ncy - nw * H / W / 2};
+  svg.setAttribute("viewBox", `${S.cam.x} ${S.cam.y} ${S.cam.w} ${S.cam.h}`);
+  const z = S.cam.w / W;                    // tamanho constante na tela com qualquer zoom
+  cornerText.forEach(c => c.setAttribute("font-size", 15 * z));
+
+  // carros e rótulos (o escolhido primeiro, depois os rivais, depois o resto)
+  const prio = D.drivers.map((_, i) => i).sort((a, b) => (b === sel) - (a === sel) || rivals.has(b) - rivals.has(a) || POS[j * N + a] - POS[j * N + b]);
+  const taken = [];
+  for (const i of prio) {
+    const car = cars[i], p = pos[i];
+    if (!p) { car.g.setAttribute("display", "none"); continue; }
+    car.g.removeAttribute("display");
+    const me = i === sel, rv = rivals.has(i), dim = sel != null && !me && !rv;
+    car.c.setAttribute("cx", p[0]); car.c.setAttribute("cy", p[1]);
+    car.c.setAttribute("r", (me ? 14 : rv ? 12 : 9) * z);
+    car.c.setAttribute("stroke", me ? "#ffffff" : rv ? "#f78166" : "#0d1117");
+    car.c.setAttribute("stroke-width", (me || rv ? 3.5 : 2) * z);
+    car.g.setAttribute("opacity", dim ? 0.55 : 1);
+    const fs = (me ? 20 : rv ? 17 : 13) * z;
+    let lx = p[0] + 15 * z, ly = p[1] - 12 * z, ok = false;
+    for (const dy of [-12, 28, -34, 50, -56, 72]) {
+      lx = p[0] + 15 * z; ly = p[1] + dy * z;
+      if (taken.every(([tx, ty]) => Math.abs(lx - tx) > 44 * z || Math.abs(ly - ty) > 18 * z)) { ok = true; break; }
+    }
+    taken.push([lx, ly]);
+    car.t.setAttribute("x", lx); car.t.setAttribute("y", ly);
+    car.t.setAttribute("font-size", fs);
+    car.t.setAttribute("stroke-width", 4.5 * z);
+    car.t.setAttribute("display", ok || me || rv ? "inline" : "none");
+    car.t.textContent = me ? `P${POS[j * N + i] + 1} ${D.drivers[i].tla}` : D.drivers[i].tla;
+  }
+  cars[sel] && carLayer.appendChild(cars[sel].g);               // o escolhido por cima
+
+  // barra de cima
+  const leader = ORDER[j * N];
+  const lapNow = t >= M.chequered ? M.total_laps : lapAt(leader, t);
+  $("lap").innerHTML = `Volta ${t < M.start ? 0 : lapNow}<small>/ ${M.total_laps}</small>`;
+  const el_ = Math.max(0, t - M.start);
+  $("clock").textContent = `${Math.floor(el_ / 3600)}:${String(Math.floor(el_ / 60) % 60).padStart(2, "0")}:${String(Math.floor(el_) % 60).padStart(2, "0")}`;
+  const fl = FLAG[code] || ["Pista verde", "var(--green)"];
+  $("status").textContent = t < M.start ? "Grid" : t > M.chequered ? "Fim" : fl[0];
+  $("status").style.color = $("status").style.borderColor = t < M.start || t > M.chequered ? "var(--muted)" : fl[1];
+  const inDuel = pred ? predSlow(t) : segK >= 0;
+  $("speed").textContent = sel == null ? "" : (inDuel ? `DUELO · ${secPerLapDuel()} s por volta` : `time-lapse · ${secPerLap()} s por volta`);
+  $("speed").className = "speed" + (inDuel ? " duel" : "");
+  $("head").style.left = `${(t - T_A) / (T_B - T_A) * 100}%`;
+  $("flag").innerHTML = FLAG[code] && code !== "2" && t >= M.start && t <= M.chequered
+    ? `<span class="pill" style="color:${fl[1]};border-color:${fl[1]}">${fl[0].toUpperCase()}</span>` : "";
+  if (!pred && S.mode === "race") document.querySelectorAll(".chip").forEach(c => c.classList.toggle("now", +c.dataset.k === segK));
+
+  if (sel == null) return;
+  // avisos fixos: duelo e box
+  const me = D.drivers[sel].tla, ban = [];
+  if (pred) ban.push(...predBanners(t));
+  else if (inDuel) {
+    const pSel = POS[j * N + sel] + 1, lines = [];
+    if (S.duels.att[j] >= 0) lines.push(`${me} ataca ${D.drivers[S.duels.att[j]].tla} <span class="mono">${fmt(S.duels.gA[j], 2)} s</span>`);
+    if (S.duels.def[j] >= 0) lines.push(`${me} defende de ${D.drivers[S.duels.def[j]].tla} <span class="mono">${fmt(S.duels.gD[j], 2)} s</span>`);
+    if (!lines.length) lines.push(`gap acima de ${fmt(+$("thr").value)} s por um instante`);
+    const place = S.duels.att[j] >= 0 ? pSel - 1 : pSel;
+    ban.push(`<div class="banner"><div class="k">Duelo pela P${place}</div><div class="v">${lines.join("<br>")}</div></div>`);
+  }
+  const win = (D.pits[me] || []).find(w => t >= w[0] && t <= w[1]);
+  if (win) {
+    ban.push(`<div class="banner box"><div class="k">Box · volta ${lapAt(sel, win[0])}</div><div class="v">${me} no pit lane ` +
+             `<span class="mono">${fmt(Math.min(t, win[1]) - Math.max(win[0], M.start))} s</span></div></div>`);
+  }
+  $("banners").innerHTML = ban.join("");
+
+  // avisos que aparecem quando o replay passa por eles
+  while (S.evIdx < S.events.length && S.events[S.evIdx].t <= t) {
+    if (S.playing) showToast(S.events[S.evIdx]);
+    S.evIdx++;
+  }
+  // race control
+  const msg = D.rcm.filter(m => m[0] <= t && m[0] > t - 60).pop();
+  $("ticker").textContent = msg ? `Race control: ${msg[1]}` : "";
+
+  // painel lateral (algumas vezes por segundo)
+  const now = performance.now();
+  if (dtw && now - S.lastSide < 120) return;
+  S.lastSide = now;
+  if (S.mode === "pred") drawFC(t);
+  const p = POS[j * N + sel], ty = tyreAt(sel, t), d = D.drivers[sel];
+  const ahead = p > 0 ? ORDER[j * N + p - 1] : null, behind = p < N - 1 ? ORDER[j * N + p + 1] : null;
+  const gA = ahead != null ? gapText(j, sel)[0] : "–", gB = behind != null ? gapText(j, behind)[0] : "–";
+  const col = C.compounds[ty.compound] || "#e6edf3";
+  if (pred) $("me").innerHTML = pairCard(t, j);
+  else $("me").innerHTML = `<div class="big"><span style="color:${d.color}">▍</span>P${p + 1} ${d.tla}</div>` +
+    `<div class="sub">${d.name} · ${d.team}</div>` +
+    `<div class="kv"><span>volta</span><span class="mono">${Math.min(lapAt(sel, t), M.total_laps)}</span></div>` +
+    `<div class="kv"><span>pneu</span><span><span class="tyre" style="border-color:${col};color:${col}">${(ty.compound || "?")[0]}</span>` +
+    `<span class="mono">${ty.life != null ? ty.life + " v" : ""}</span></span></div>` +
+    `<div class="kv"><span>paradas</span><span class="mono">${stopsBefore(sel, t)}</span></div>` +
+    `<div class="kv"><span>à frente${ahead != null ? " (" + D.drivers[ahead].tla + ")" : ""}</span><span class="mono">${gA}</span></div>` +
+    `<div class="kv"><span>atrás${behind != null ? " (" + D.drivers[behind].tla + ")" : ""}</span><span class="mono">${gB}</span></div>`;
+  let rows = "";
+  for (let q = 0; q < N; q++) {
+    const i = ORDER[j * N + q], [g, cls] = gapText(j, i), dd = D.drivers[i];
+    const out = g === "abandono" ? " out" : "";
+    rows += `<div class="row${i === sel ? " sel" : rivals.has(i) ? " rival" : ""}${out}"><span class="pos mono">${q + 1}</span>` +
+            `<span class="dot" style="background:${dd.color}"></span><b>${dd.tla}</b><span class="gap mono ${cls}">${g}</span></div>`;
+  }
+  $("order").innerHTML = rows;
+}
+
+// ------------------------------------------------------------------ laço
+function frame(ts) {
+  const dtw = S.lastWall == null ? 0 : Math.min(0.1, (ts - S.lastWall) / 1000);
+  S.lastWall = ts;
+  if (S.playing && S.sel != null) {
+    const ahead = S.t + S.rate * 0.6;                       // começa a frear um pouco antes do duelo
+    const pred = S.mode === "pred" && S.ep != null;
+    const duel = pred ? predSlow(S.t) || predSlow(ahead) : S.duels.seg[frameOf(S.t)] >= 0 || S.duels.seg[frameOf(ahead)] >= 0;
+    const target = M.lap_ref / (duel ? secPerLapDuel() : secPerLap());
+    S.rate += (target - S.rate) * Math.min(1, dtw * 3);
+    S.t += dtw * S.rate;
+    const end = pred ? S.epEnd : T_B;
+    if (S.t >= end) { S.t = end; setPlaying(false); }
+  }
+  render(dtw);
+  requestAnimationFrame(frame);
+}
+render(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

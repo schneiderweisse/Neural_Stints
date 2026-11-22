@@ -144,7 +144,9 @@ data/live/<ano>_<circuito>_<sessão>/       ex.: data/live/2026_interlagos_race/
   recording.jsonl      fluxo bruto do f1-dash (/api/realtime) no formato do simulador do f1-dash;
                        uma parte nova (recording_2.jsonl…) a cada reinício do gravador
   laps.parquet         histórico de voltas montado pelo live.reader, com os nomes de coluna de race_laps.parquet
-  predictions.parquet  previsões, no formato da tabela padrão com split = live
+  predictions.parquet  previsões, no formato da tabela padrão com split = live; um previsor reaberto
+                       retoma o arquivo e prevê as voltas que passaram enquanto estava parado
+  predictions_replay.parquet  as previsões do live.predict --once, de todas as voltas de uma vez
 ```
 
 Os arquivos são sempre gravados num arquivo temporário e depois renomeados, para o painel nunca ler um arquivo pela metade. O replay de uma gravação passa pelo mesmo serviço e gera os mesmos arquivos.
@@ -571,6 +573,23 @@ Leitura:
 | São Paulo, previsões feitas ao vivo, pneu liso | 160 | 50% | 84% (78%) | 66% (65%) | 74% (73%) | 80% | 0,166 (0,250) |
 
 Precisão: das disputas previstas nas 10 voltas seguintes (probabilidade de 50% ou mais), quantas aconteceram. Recall: das disputas que aconteceram, quantas foram previstas. "A ±1 volta": entre as previstas que aconteceram, a parte cuja volta real ficou a até 1 volta da prevista. A largura da janela foi escolhida na validação.
+
+### Las Vegas: duelos previstos e duelos em curso (`modeling/duel_replay.py`)
+
+O replay da aba Replay usa a mesma conta com as previsões da LSTM com regulamento (`lstm_20261120_ens5`). São as feitas ao vivo, mais as perdidas na queda do previsor, refeitas com `live.predict --once`. A gravação começou na volta 12, e o desfecho vem dos tempos oficiais (TracingInsights). Aqui só se medem as previsões de duelo, então não há recall nem Brier dos duelos que começam.
+
+| Tipo | Situações (voltas) | Previstas | Sem desfecho | Resultado |
+|---|---|---|---|---|
+| Duelo que começa (1–5 s; a rede prevê a chegada a menos de 1 s) | 158 | 45 | 3 | 86% aconteceram, 94% delas dentro da janela de 80% |
+| Duelo em curso (menos de 1 s; a rede prevê se o de trás passa) | 318 | 114 com ultrapassagem e 156 sem | 48 | 66% das ultrapassagens previstas aconteceram; 43% dos "segura" se confirmaram; acerto de 53% |
+
+- **Duelo em curso:** a chance de ultrapassagem é P(gap na linha abaixo de 0) na mesma normal da projeção.
+- **Contra a taxa base:** em 61% das 270 situações com desfecho, o carro de trás passou nas 10 voltas seguintes. Prever sempre ultrapassagem acertaria mais que a rede. O Brier da chance foi de 0,251, contra 0,238 da taxa fixa.
+- **Por faixa de chance** (263 voltas):
+  - **Extremos:** só eles funcionam. Acima de 80%, os 21 casos passaram; abaixo de 20%, 28% passaram.
+  - **Meio:** no meio, a taxa real não acompanha a chance.
+  - **Gap:** o gap na linha informa mais que a chance da rede. Com menos de 0,3 s, 76% passaram; com 0,6–1 s, 47%.
+- **Leitura:** a rede prevê o ritmo de cada piloto sem o outro. Ar sujo, DRS e a dificuldade de passar não entram, e `SIGMA_SCALE` foi calibrado para a chegada a 1 s. Para os duelos em curso, a projeção não é um modelo de ultrapassagem.
 
 ## Relatórios de corrida
 

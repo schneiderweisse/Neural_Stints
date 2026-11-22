@@ -1,0 +1,31 @@
+{
+ "ArchiveStatus": {
+  "Status": "Generating"
+ },
+ "EndDate": "2026-11-21T22:00:00",
+ "GmtOffset": "-08:00:00",
+ "Key": 11420,
+ "Meeting": {
+  "Circuit": {
+   "Key": 152,
+   "ShortName": "Las Vegas"
+  },
+  "Country": {
+   "Code": "USA",
+   "Key": 19,
+   "Name": "United States"
+  },
+  "Key": 1300,
+  "Location": "Las Vegas",
+  "Name": "Las Vegas Grand Prix",
+  "Number": 21,
+  "OfficialName": "FORMULA 1 HEINEKEN LAS VEGAS GRAND PRIX 2026"
+ },
+ "Name": "Race",
+ "Path": "2026/2026-11-21_Las_Vegas_Grand_Prix/2026-11-21_Race/",
+ "SessionStatus": "Started",
+ "StartDate": "2026-11-21T20:00:00",
+ "Type": "Race",
+ "_kf": true,
+ "TotalLaps": 50
+}

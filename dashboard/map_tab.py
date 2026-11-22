@@ -77,7 +77,11 @@ def geometry(m: dict) -> dict:
         lx, ly = pos.get("x", 0) + 420 * np.cos(ang), pos.get("y", 0) + 420 * np.sin(ang)
         a, b = to_svg(*rotate([lx], [ly], deg, cx, cy))
         corners.append((int(c.get("number", 0)), float(a[0]), float(b[0])))
-    return {"x": px, "y": py, "frac": frac, "h": float(h), "corners": corners}
+    # a mesma transformação como matriz (x_svg = a·x + b·y + e, y_svg = c·x + d·y + f), para o replay
+    co, si = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+    affine = [scale * co, -scale * si, scale * si, scale * co,
+              scale * (-cx * co + cy * si - xr.min()) + PAD, scale * (-cy * co - cx * si - yr.min()) + PAD]
+    return {"x": px, "y": py, "frac": frac, "h": float(h), "corners": corners, "affine": [float(v) for v in affine]}
 
 
 def point_at(g: dict, f: float) -> tuple[float, float]:

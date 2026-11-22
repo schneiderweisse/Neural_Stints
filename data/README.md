@@ -78,8 +78,14 @@ A telemetria volta a volta das corridas e sprints de 2022 a 2026 fica fora de `d
 
 ```bash
 py pipeline/fetch_telemetry.py                        # telemetry/tracinginsights/<ano>/ (~19 GB de JSON, 135 mil voltas)
+py pipeline/fetch_telemetry.py 2026 --event "Las Vegas Grand Prix"   # só um GP (~150 MB), somado ao que já existe
 .venv/Scripts/python -m pipeline.telemetry_compact    # telemetry/compact/ (~2,5 GB, ~2 min com 14 processos)
+.venv/Scripts/python -m pipeline.race_replay 2026 "Las Vegas Grand Prix"   # data/processed/replay/2026_las_vegas.json (aba Replay)
+.venv/Scripts/python -m live.predict --session 2026_las_vegas_race --once   # previsões de todas as voltas gravadas, à parte
+.venv/Scripts/python -m modeling.duel_replay 2026 "Las Vegas Grand Prix" --live 2026_las_vegas_race   # ..._duels.json
 ```
+
+O replay (`processed/replay/<ano>_<gp>.json`, ~3 MB) tem, a cada 0,5 s da corrida, a ordem e o intervalo para o carro da frente e, a cada 0,25 s, o ponto de cada carro no mapa, mais box, pneus, bandeiras e mensagens do race control. A posição na pista vem da distância percorrida na volta, e não do x/y, que às vezes congela por segundos; o viés de distância de cada carro é corrigido nos fins de setor. Na linha, o intervalo fica a 0,03 s (mediana) do gap oficial.
 
 | Arquivo | Conteúdo |
 |---|---|

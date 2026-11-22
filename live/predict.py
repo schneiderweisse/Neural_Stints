@@ -9,6 +9,8 @@ LIVE_RUN (a LSTM com regulamento, escolhida em 21/11/2026); --run troca por outr
 
 Grava data/live/<sessão>/predictions.parquet no formato padrão de docs/resultados.md, com split = live;
 o valor real de cada volta prevista é preenchido quando ela termina, e aí dá para medir o erro ao vivo.
+Se o arquivo já existe (o previsor caiu e foi reaberto), ele é retomado, e as voltas que passaram com o
+previsor parado são previstas assim que ele volta. O --once grava em predictions_replay.parquet.
 
 Só faz sentido em corridas (e sprints): os treinos livres não têm total de voltas.
 
@@ -16,7 +18,7 @@ Uso, a partir da pasta Neural_Stints:
     .venv/Scripts/python -m live.predict                           # sessão de corrida mais recente
     .venv/Scripts/python -m live.predict --session 2026_interlagos_race
     .venv/Scripts/python -m live.predict --session 2026_las_vegas_race   # espera a pasta se ela ainda não existir
-    .venv/Scripts/python -m live.predict --session <pasta> --once  # todas as voltas de uma vez (avaliação)
+    .venv/Scripts/python -m live.predict --session <pasta> --once  # todas as voltas de uma vez (avaliação), à parte
 """
 import argparse
 import json
@@ -38,6 +40,7 @@ from pipeline import sequences as sq
 from pipeline.race_laps import CIRCUITS, regulation
 
 SESSION_TYPES = ("race", "sprint")
+REPLAY_FILE = "predictions_replay.parquet"                # saída do --once
 # modelo ao vivo da v1: ensemble de 5 LSTMs com o embedding de regulamento (docs/resultados.md, célula × regulamento)
 LIVE_RUN = RUNS / "lstm_20261120_ens5"
 
@@ -156,16 +159,33 @@ class LivePredictor:
         new["gru_run"] = self.run_dir.name
         self.predictions = pd.concat([self.predictions, new], ignore_index=True)
 
+    def resume(self) -> int:
+        """Retoma as previsões já gravadas na sessão, para um previsor reiniciado no meio da corrida não
+        regravar o arquivo do zero. Devolve quantas origens (piloto × volta) retomou."""
+        path = self.dir / "predictions.parquet"
+        if not path.exists():
+            return 0
+        old = pd.read_parquet(path)
+        runs = set(old["gru_run"].dropna()) if "gru_run" in old else set()
+        if runs - {self.run_dir.name}:
+            raise SystemExit(f"{path} tem previsões de outro modelo ({', '.join(sorted(runs))}). Rode com "
+                             f"--run {sorted(runs)[0]} ou tire o arquivo da pasta antes de trocar de modelo.")
+        self.predictions = old
+        self.last_anchor = {d: int(t) for d, t in old.groupby("driver")["t"].max().items()}
+        return len(old.drop_duplicates(["driver", "t"]))
+
     def step(self, laps: pd.DataFrame) -> int:
-        """Prevê a partir da última volta de cada piloto que avançou. Devolve quantas previsões fez."""
+        """Prevê a partir de cada volta nova de cada piloto, inclusive as que passaram enquanto o previsor
+        estava parado (pelo predicted_at dá para separá-las). Só parte de voltas gravadas: as variáveis
+        completam as que faltam com linhas vazias. Devolve quantas previsões fez."""
         feats = self.features(laps)
+        recorded = laps.groupby("driver")["lap"].agg(set)
         frames = []
         for drv, g in feats.groupby("driver"):
             g = g.sort_values("lap")
-            t = int(g["lap"].max())
-            if t > self.last_anchor.get(drv, 0):
-                frames.append(self.forecast_driver(g, t))
-                self.last_anchor[drv] = t
+            start = max(self.last_anchor.get(drv, 0) + 1, self.min_context)
+            frames += [self.forecast_driver(g, int(t)) for t in sorted(recorded.get(drv, set())) if t >= start]
+            self.last_anchor[drv] = max(self.last_anchor.get(drv, 0), int(g["lap"].max()))
         n = sum(f is not None for f in frames)
         self.add(frames)
         self.fill_real(feats)
@@ -182,8 +202,8 @@ class LivePredictor:
         self.fill_real(feats)
         return sum(f is not None for f in frames)
 
-    def save(self) -> Path:
-        path = self.dir / "predictions.parquet"
+    def save(self, name: str = "predictions.parquet") -> Path:
+        path = self.dir / name
         write_atomic(path, lambda p: self.predictions.to_parquet(p, index=False))
         return path
 
@@ -198,7 +218,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", help="pasta em data/live (padrão: a corrida mais recente)")
     ap.add_argument("--run", help=f"pasta em runs/ do modelo (padrão: {LIVE_RUN.name})")
-    ap.add_argument("--once", action="store_true", help="prevê todas as voltas do histórico e sai")
+    ap.add_argument("--once", action="store_true", help=f"prevê todas as voltas do histórico, grava em {REPLAY_FILE} e sai")
     ap.add_argument("--interval", type=float, default=3.0)
     args = ap.parse_args()
 
@@ -217,10 +237,12 @@ def main() -> None:
     print(f"{session_dir.name}: modelo {pred.run_dir.name} · circuito {pred.circuit} · referência: {pred.ref_source} "
           f"({len(pred.reference)} pilotos)")
     laps_path = session_dir / "laps.parquet"
-    if args.once:
+    if args.once:                                         # arquivo separado: não apaga as previsões feitas ao vivo
         n = pred.replay_all(pd.read_parquet(laps_path))
-        print(f"{n} previsões -> {pred.save()}")
+        print(f"{n} previsões -> {pred.save(REPLAY_FILE)}")
         return
+    if k := pred.resume():
+        print(f"retomadas {k} previsões de predictions.parquet; as voltas que passaram desde então são previstas agora")
     if keep_awake(display=True):
         print("modo acordado: o Windows não suspende nem apaga a tela enquanto o previsor roda (não feche a tampa)")
     seen = None

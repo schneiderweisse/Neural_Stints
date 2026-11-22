@@ -11,6 +11,13 @@ from live.laps import as_list, session_key, sub
 from modeling.figures import COMPOUND_LETTER, compound_color, fmt_lap, lap_times, live_forecast
 
 RACE_REPORT = "https://github.com/schneiderweisse/Neural_Stints/blob/main/docs/race_reports/2026_sao_paulo.md"
+# na demo, o que vale dizer de cada corrida gravada, embaixo das previsões
+DEMO_NOTES = {
+    "2026_interlagos_race": f" Análise completa no [relatório da corrida]({RACE_REPORT}).",
+    "2026_las_vegas_race": " A gravação começou na volta 12, com a corrida em andamento, e a maior parte das previsões "
+                           "feitas até a volta 22 se perdeu numa queda do previsor. Na aba Replay, os duelos previstos "
+                           "usam também as refeitas.",
+}
 
 TRACK_STATUS = {"1": ("Pista verde", "#3fb950"), "2": ("Bandeira amarela", "#d29922"), "3": ("", "#7d8590"),
                 "4": ("Safety car", "#d29922"), "5": ("Bandeira vermelha", "#f85149"), "6": ("VSC", "#d29922"),
@@ -299,7 +306,7 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
 
     if preds is None or preds.empty:
         if demo:
-            st.caption("Nesta corrida não há previsões da GRU: 2019 é anterior aos dados de treino (2022 a 2026). "
+            st.caption("Nesta corrida não há previsões da rede: 2019 é anterior aos dados de treino (2022 a 2026). "
                        "O ajuste do modelo está nas abas GRU v0 e Tarefas A e B; ao vivo, no painel completo, a "
                        "previsão das próximas 10 voltas aparece aqui a cada volta.")
         elif str(sub(state, "SessionInfo", "Type") or "").lower() in ("race", "sprint"):
@@ -311,9 +318,12 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
         ens = data.run_files(run)["config"].get("ensemble") if (data.RUNS / run / "config.json").exists() else None
         st.caption(f"Modelo `{run}`" + (f": média dos quantis de {len(ens['members'])} sementes." if ens else "."))
     if demo:
-        st.caption("Previsões feitas ao vivo durante a corrida, volta a volta. Com pneu de chuva (começo e fim da corrida) "
-                   "a rede está fora do que aprendeu, porque foi treinada sem corridas molhadas, e erra cerca de 10 s. "
-                   f"Análise completa no [relatório da corrida]({RACE_REPORT}).")
+        note = "Previsões feitas ao vivo durante a corrida, volta a volta."
+        if laps["compound"].astype(str).str.upper().isin(["INTERMEDIATE", "WET"]).any():
+            note += (" Com pneu de chuva a rede está fora do que aprendeu, porque foi treinada sem corridas molhadas, e "
+                     "erra cerca de 10 s.")
+        note += DEMO_NOTES.get(session_dir.name, "")
+        st.caption(note)
     have = set(preds["driver"])
     options = [d for d in order if d in have]
     picked = st.multiselect("Pilotos (escolha dois para comparar)", options, default=options[:1], max_selections=2,

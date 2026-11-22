@@ -4,6 +4,127 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 
 ## 22 de novembro de 2026
 
+### Demo do GitHub Pages alinhada ao painel
+
+- **O objetivo:** a demo (`demo/`) passa a ter tudo o que o painel local tem, menos a parte ao vivo.
+  - **Fora da demo:** a leitura do f1-dash durante as sessões e a aba Mapa, que estima as posições ao vivo pelos minissetores.
+  - **Na demo:** o mapa das corridas gravadas está na aba Replay, com a telemetria.
+- **O que entrou:**
+  - **Corridas gravadas:** Las Vegas entrou, com as previsões feitas ao vivo pela LSTM. A legenda "Modelo … média de 5 sementes" usa a configuração do modelo, que agora vai para a demo. As melhorias do painel chegam sozinhas, porque a demo usa o mesmo código: as colunas de previsão na cronometragem, a última volta e o gap na linha nos duelos.
+  - **Replay:** a seção nova tem os dois modos, a corrida do piloto e os duelos previstos pela rede (os que começam e os em curso).
+  - **Textos:** as legendas das corridas gravadas variam por corrida. O aviso de pneu de chuva só aparece se houve pneu de chuva, o relatório só aparece em São Paulo, e Las Vegas avisa da gravação a partir da volta 12 e das previsões perdidas na queda. Onde se lia "GRU", agora se lê "rede", porque a corrida de Las Vegas foi com a LSTM.
+- **`demo/build.py`:**
+  - Uma gravação em partes, como a de Las Vegas (`recording.jsonl` e `recording_2.jsonl`, por causa da queda), vira uma reprodução só, com o relógio contínuo pelo Heartbeat do feed: 169 estados, 92 min.
+  - O export leva também os arquivos da aba Replay e o código dela (`map_tab.py`, `replay_tab.py`, `replay_player.html`).
+- **Tamanho:** `demo/files` passou de ~5 para ~10 MB, e o `app.zip` tem 7,5 MB. O replay de Las Vegas sozinho tem 4,5 MB.
+- **Export refeito:**
+  - As reproduções de São Paulo e de 2019 saíram com o mesmo conteúdo; mudou só a data no gzip, e os arquivos antigos voltaram.
+  - O `race_laps` da demo ganhou 3 voltas (8.295, contra 8.292), por seguir a versão atual do pipeline, a mesma do painel local.
+- **Conferido no navegador, com a demo servida localmente pelo stlite:**
+  - Las Vegas nas corridas gravadas, com as colunas de previsão, os duelos e o erro ao vivo (MAE de 0,750 s em 1.436 voltas, cobertura de 78%).
+  - O Replay nos dois modos, com LEC e com BOT → STR.
+  - A aba GRU v0, com o mesmo MAE de teste do painel local (0,476 s).
+- **Publicação:** o deploy no GitHub Pages acontece no push.
+
+### Replay: duelos em curso e a chance de ultrapassagem
+
+- **Por que:** VER, RUS, HUL e LIN não tinham nenhum duelo previsto, porque a regra só prevê o começo de um duelo, com o carro de trás a 1–5 s.
+  - **VER e RUS:** quase sempre já estavam a menos de 1 s do carro vizinho. O VER, por exemplo, ficou com o segundo colocado a menos de 1 s em todas as 32 voltas de bandeira verde desde a 12.
+  - **HUL e LIN:** ficaram abaixo do corte, com chances máximas de 47% e 35%.
+- **A regra nova (`modeling/duel_replay.py`):** quando o carro de trás já está a menos de 1 s na linha, a pergunta passa a ser se ele passa.
+  - Com a mesma projeção do gap e a mesma normal, a chance de ultrapassagem até a volta k é a de o gap na linha ficar abaixo de 0.
+  - A ultrapassagem é prevista acima de 50%, e a janela vai de 10% a 90%.
+  - As voltas seguidas do mesmo par formam um episódio, que é avaliado pela primeira previsão. Foram 164 episódios.
+- **O resultado é ruim, e o painel diz isso:**
+  - **Situações:** houve 318 voltas de duelo em curso desde a 12; 270 tiveram desfecho nas 10 voltas seguintes. Em 61% delas, o carro de trás passou.
+  - **Ultrapassagem prevista:** a rede previu em 114 voltas e acertou 75 (66%), 73 delas dentro da janela.
+  - **"Segura" previsto:** a rede previu em 156 voltas e acertou 67 (43%).
+  - **Acerto geral:** 53%, abaixo dos 61% de prever sempre ultrapassagem. O Brier da chance foi de 0,251, contra 0,238 prevendo sempre a taxa média.
+  - **Por faixa de chance** (263 voltas): só os extremos funcionaram. Acima de 80%, os 21 casos passaram; abaixo de 20%, 28% passaram. No meio, a taxa real não acompanha a chance.
+  - **O gap informa mais:** com menos de 0,3 s na linha, 76% passaram; com 0,6–1 s, 47%.
+- **Por que a rede erra aqui:** ela prevê o ritmo de cada piloto sem saber do outro. Ar sujo, DRS e a dificuldade de passar não entram na conta, e a calibração da incerteza (`SIGMA_SCALE`) foi feita para a chegada a 1 s, não para a ultrapassagem.
+  - Em Las Vegas, com retas longas, passar foi fácil: RUS e VER trocaram de posição na linha nas voltas 28, 29, 31, 32, 36 e 38.
+  - Enquanto isso, a rede dava de 29% a 48% de chance de ultrapassagem a cada volta.
+- **No player:** o modo "Duelos previstos pela rede" ganhou uma segunda seção, "Duelos em curso", dividida entre os que a rede acertou, os que errou e os sem desfecho.
+  - **Lista:** cada duelo mostra a previsão ("passa na V34" ou "não passa (42%)") e o que aconteceu.
+  - **Replay e gráfico:** são os mesmos, com a janela da ultrapassagem.
+  - **Textos:** o texto do seletor e o resumo da aba dão o acerto e a taxa de ultrapassagens.
+- **Contagem nova de duelos por piloto:** VER 16, RUS 25, HUL 9 e LIN 2.
+- **Conferido no navegador:** VER × RUS (a rede errou nos 7 episódios do par entre as voltas 26 e 36) e BOT → STR, em que a previsão da volta 37 já era de ultrapassagem.
+- **Ideia para depois:** como o gap na linha prevê melhor que a rede, um modelo de ultrapassagem precisaria dele, do DRS e da diferença de ritmo. É outro problema, separado da previsão de tempo de volta.
+
+### Replay: os duelos previstos pela rede
+
+- **A ideia:** escolher um piloto e um duelo que a rede previu ao vivo, e assistir ao par desde a volta da previsão. O exemplo é "na volta 10, a rede prevê que o carro alcança o da frente na volta 14, janela 14–17". Assim dá para ver tanto os duelos que se confirmaram quanto os que não.
+- **A regra é a do painel ao vivo e do backtest (`modeling/duels.py`):**
+  - Ao fim da volta t, para um carro a 1–5 s do carro logo à frente na linha, a rede soma as diferenças de tempo previstas para as 10 voltas seguintes.
+  - O duelo é previsto quando a chance de chegar a menos de 1 s passa de 50%. A janela de 80% vai dos 10% aos 90% de chance.
+  - O que aconteceu vem dos tempos oficiais, volta a volta. A conta para em parada, SC/VSC ou pneu de chuva.
+- **Previsões:** são as 514 origens feitas ao vivo, mais as que se perderam na queda, refeitas com `live.predict --once`; no total, 923 origens.
+  - Nas origens que existem nos dois arquivos, as refeitas são idênticas às do ao vivo em 97% dos casos. Nas outras, a diferença chega a 0,11 s, por voltas que a cronometragem corrigiu depois.
+  - Como a gravação começou na volta 12, não há previsão antes dela.
+- **`modeling/duel_replay.py`:** junta as previsões seguidas do mesmo par num episódio. O resultado do episódio é o da primeira previsão, o aviso mais cedo, e as previsões das voltas seguintes também ficam guardadas.
+- **Las Vegas, voltas 12 a 49:** houve 158 situações de par a 1–5 s, e a rede previu duelo em 45 delas.
+  - **Por previsão:** 3 foram interrompidas. Das outras, 86% aconteceram, e 94% delas dentro da janela.
+  - **Por episódio:** foram 29. Aconteceram 24 (86% dos 28 com desfecho), 22 deles dentro da janela; 4 não aconteceram, e 1 foi interrompido pelo SC.
+  - **Contra o backtest:** é parecido com as corridas de teste (82% aconteceram), mas a amostra é pequena.
+- **O modo "Duelos previstos pela rede" no player:**
+  - **Escolha:** o seletor mostra quantos duelos previstos cada piloto teve. Os duelos aparecem agrupados entre os que aconteceram, os que não aconteceram e os sem desfecho.
+  - **Reprodução:** o replay começa no fim da volta da previsão e mostra as 10 voltas do horizonte, com a câmera no par. Ele fica mais lento dentro da janela prevista e quando o gap real fica abaixo de 1 s.
+  - **Gráfico, embaixo do mapa:** o gap previsto com a faixa de 80%, a janela, a previsão da volta mais recente e o gap real. O gap real aparece contínuo, suavizado em ~3 s, e em pontos na linha. Clicar no gráfico leva a reprodução até aquela volta.
+  - **Avisos:** começo da janela, início da disputa, ultrapassagem, box e SC, e o veredito no fim.
+- **Dois exemplos:**
+  - **BOT → STR, volta 28:** a rede previu o duelo na volta 30, com 58% de chance, e ele começou na volta 30.
+  - **ALO → BEA, volta 27:** a rede previu o duelo na volta 28, com 98% de chance, e ele não aconteceu. No meio da volta 28 o gap chegou a 0,6 s, mas na linha não passou de 1,11 s; depois, o ALO perdeu ritmo e estava 14,8 s atrás na volta 38.
+- **No `race_replay`:** o arquivo agora guarda também o progresso de cada carro, para o player calcular o gap de qualquer par. Passou de 3,3 para 4,5 MB.
+- Conferido no navegador com os dois exemplos e com a volta ao modo da corrida.
+
+### Aba Replay: a corrida de Las Vegas em time-lapse
+
+- **A ideia:** rever a corrida no mapa acompanhando um piloto escolhido antes do play.
+  - Cada volta leva 2 s.
+  - Quando o piloto fica a menos de 1 s do carro da frente ou de trás, o replay desacelera para 6 s por volta e dá zoom no par.
+  - O time-lapse volta quando o gap passa de 1 s por 12 s seguidos.
+  - O replay mostra bandeiras, box, pneus, ultrapassagens e as mensagens do race control.
+- **Dados:** o TracingInsights publicou a corrida com telemetria. O `fetch_telemetry.py` ganhou `--event`, para baixar um GP só: foram 1.014 voltas, 148 MB. Num clone que já existe, o GP é somado ao que já está baixado, sem apagar nada.
+- **Montagem (`pipeline/race_replay.py`):** a cada 0,5 s de corrida, calcula a ordem e o intervalo para o carro da frente; a cada 0,25 s, o ponto de cada carro no mapa. O arquivo tem 3,3 MB.
+  - O intervalo é o tempo que o carro de trás leva para chegar aonde o da frente está agora.
+  - ALB não largou: a "telemetria" dele é um ponto parado.
+- **Posição pela distância, não pelo x/y:**
+  - O x/y do VER fica parado por 8 s na volta 1, enquanto a distância continua certa. Com o x/y, o replay o punha em P4; pela distância, ele está à frente, como diz a própria telemetria.
+  - A posição no mapa é o ponto do traçado na fração da volta já percorrida. No pit lane, é o x/y real.
+  - Na volta 1, a distância começa em 0 em cada lugar do grid; a projeção do primeiro ponto no traçado dá o ponto de partida.
+- **Viés de cada carro:** a distância vem da velocidade integrada e, no meio da volta, erra um pouco, de um jeito diferente em cada carro.
+  - Contra o tempo oficial do fim dos setores, parte desse erro é um viés fixo do carro.
+  - Estimado nas voltas ímpares, ele baixa o erro nas pares de 0,085 para 0,064 s no setor 1 e de 0,128 para 0,095 s no setor 2. Entrou na montagem.
+  - Ancorar cada volta nos fins de setor não ajudou: com âncora no setor 1, o erro no setor 2 subiu de 0,130 para 0,144 s. Ficou de fora.
+- **Conferência:**
+  - **Intervalo na linha:** contra os gaps oficiais gravados ao vivo (455 casos com bandeira verde), o erro mediano é de 0,034 s e o p90, de 0,16 s. O "menos de 1 s" concorda em 98% dos casos.
+  - **Ordem no meio da volta:** nos fins de setor, entre pares a menos de 0,5 s, a ordem do replay bate com a oficial em 95% (setor 1) e 90% (setor 2). Carros a menos de ~0,3 s podem aparecer trocados por alguns segundos; a legenda da aba avisa.
+- **A corrida:** o segundo colocado ficou a menos de 1 s do líder em 86% do tempo com bandeira verde. Pela cronometragem, o líder mudou 8 vezes de uma volta para outra.
+  - No meio da volta, contando só lideranças de 5 s ou mais, as trocas dão de 38 a 49, conforme o método (projeção do x/y ou distância).
+  - Como esse número não é robusto, o painel mostra só o da linha.
+- **O player (`dashboard/replay_player.html`):** roda no navegador.
+  - **Duelos e capítulos:** acha os duelos do piloto (com bandeira verde ou amarela local, fora do box) e lista cada um como capítulo clicável. O capítulo traz o resultado (ganhou, perdeu, manteve ou o número de trocas de posição).
+  - **Controles:** o corte do duelo, os segundos por volta e o zoom podem ser trocados.
+  - **Linha do tempo:** marca os duelos, o SC/VSC e o box.
+  - Conferido no navegador com VER (largada e duelos pela P1), LEC (briga de três carros pela P8) e HAM (box sob safety car).
+
+### Previsor: retomada depois de uma queda
+
+- **O problema:** na queda das 01h46, o `live.predict` reaberto começou sem nada na memória e regravou `predictions.parquet`. Isso apagou as previsões feitas antes da queda (entrada abaixo).
+- **A correção:**
+  - **Retomada:** ao abrir, o previsor carrega o arquivo da sessão e continua de onde parou. Se o arquivo for de outro modelo, ele para e avisa, em vez de misturar os dois.
+  - **Voltas puladas:** a cada atualização, ele prevê a partir de toda volta gravada desde a última origem do piloto. Antes, só partia da volta mais recente. Assim, as voltas que passaram com o previsor parado são previstas assim que ele volta, e o `predicted_at` mostra que foram feitas depois.
+  - **Só voltas gravadas:** as variáveis completam as voltas que faltam com linhas vazias, como no pipeline de treino. O previsor ao vivo não parte dessas linhas.
+  - **`--once`:** agora grava em `predictions_replay.parquet`, para nunca sobrescrever as previsões feitas ao vivo.
+- **Conferido** numa cópia da sessão de Las Vegas, sem tocar em `data/live`:
+  - Um previsor rodou até a volta 30, com 347 origens. Reaberto com as voltas até a 35, ele retomou as 347 e previu só as 95 novas, sem duplicar nenhuma.
+  - As previsões retomadas são idênticas às de um replay de tudo até a volta 35, com diferença zero no p50.
+  - Nenhum dos 6 pilotos sem a volta 23 na gravação ganhou origem nessa volta.
+  - Com o comando completo, o previsor reaberto completou a sessão até a volta 49: foram 708 origens, contra 514 no arquivo feito ao vivo. O `--once` gravou 923 origens à parte e deixou o arquivo ao vivo intacto.
+- **Las Vegas:** as origens perdidas na queda podem ser refeitas com `--once` na avaliação. Elas ficam em `predictions_replay.parquet`, separadas das previsões feitas durante a corrida.
+
 ### GP de Las Vegas ao vivo
 
 - **A corrida:** foram 50 voltas, decididas por pouco. Na linha de chegada, Verstappen terminou 0,639 s à frente de Norris; Piastri chegou a 1,529 s e Antonelli a 2,574 s.
@@ -23,7 +144,7 @@ Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais re
 - **Previsões perdidas:** o `live.predict` reiniciado começou com a memória vazia e regravou `predictions.parquet`. Com isso, as previsões feitas antes das 01h49 se perderam.
   - O arquivo guarda 514 origens (piloto × volta), da volta 17 à 49, todas feitas depois da queda.
   - Não há previsões com origem nas voltas 18 a 20.
-  - Fica pendente fazer o previsor carregar o arquivo existente quando reinicia.
+  - A correção está na entrada acima.
 
 ## 21 de novembro de 2026
 

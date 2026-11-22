@@ -8,29 +8,37 @@ Dois passos:
 `export` precisa dos dados do projeto, que ficam fora do git (runs/, data/processed, data/live), e por
 isso roda na máquina de quem treinou. Ele copia o run da GRU e o do ingênuo mostrados na demo, as
 voltas das corridas de validação e teste e calcula a reprodução das corridas gravadas a cada 30 s, só
-com o que o painel usa (`replay.json.gz`, no lugar do fluxo bruto). Quando a gravação tem previsões
-feitas ao vivo, elas vão junto.
+com o que o painel usa (`replay.json.gz`, no lugar do fluxo bruto). Uma gravação em partes (o gravador
+reiniciado no meio da corrida: recording.jsonl, recording_2.jsonl…) vira uma reprodução só, com o
+relógio contínuo pelo Heartbeat do feed. Quando a gravação tem previsões feitas ao vivo, elas vão junto,
+com a configuração e as métricas do modelo que as fez. Os replays da aba Replay
+(data/processed/replay/, de pipeline/race_replay.py e modeling/duel_replay.py) também vão.
 
 `site` só usa a biblioteca padrão: junta o index.html e um app.zip com o código das abas
-(dashboard/, live/feed.py, live/laps.py, modeling/figures.py), a entrada da demo (demo/app.py) e
-demo/files/. O stlite descompacta o zip no sistema de arquivos do Pyodide e roda demo_app.py.
+(dashboard/, live/feed.py, live/laps.py, modeling/figures.py, modeling/duels.py), a entrada da demo
+(demo/app.py) e demo/files/. O stlite descompacta o zip no sistema de arquivos do Pyodide e roda
+demo_app.py.
 """
 import argparse
 import gzip
 import json
+import re
 import shutil
 import sys
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "demo"
 FILES = DEMO / "files"
 CODE = ["dashboard/__init__.py", "dashboard/data.py", "dashboard/layout.py", "dashboard/live_tab.py",
-        "dashboard/model_tab.py", "dashboard/tasks_tab.py", "dashboard/duels_view.py", "live/__init__.py", "live/feed.py",
+        "dashboard/model_tab.py", "dashboard/tasks_tab.py", "dashboard/duels_view.py", "dashboard/map_tab.py",
+        "dashboard/replay_tab.py", "dashboard/replay_player.html", "live/__init__.py", "live/feed.py",
         "live/laps.py", "modeling/__init__.py", "modeling/duels.py", "modeling/figures.py"]
 RUN_FILES = ["config.json", "metrics.json", "history.csv", "predictions.parquet"]
-REPLAY_SESSIONS = ["2026_interlagos_race", "2019_hockenheim_race"]
+REPLAY_SESSIONS = ["2026_las_vegas_race", "2026_interlagos_race", "2019_hockenheim_race"]
+RACE_REPLAYS = ROOT / "data" / "processed" / "replay"     # aba Replay: corrida pela telemetria e duelos previstos
 PREDICTION_COLUMNS = ["driver", "t", "h", "lap", "time_p10", "time_p50", "time_p90", "time_real", "clean", "gru_run"]
 REPLAY_EVERY = 30.0
 RACE_LAPS_COLUMNS = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "pit_out", "neutralised",
@@ -74,6 +82,45 @@ def slim_state(state: dict) -> dict:
     return out
 
 
+def recording_parts(src: Path) -> list[Path]:
+    """recording.jsonl, recording_2.jsonl…: uma parte nova a cada reinício do gravador, em ordem."""
+    def part(path: Path) -> int:
+        m = re.search(r"_(\d+)$", path.stem)
+        return int(m.group(1)) if m else 1
+    return sorted(src.glob("recording*.jsonl"), key=part)
+
+
+def heartbeat(state: dict) -> float | None:
+    """Horário do feed (Heartbeat.Utc) em segundos desde 1970."""
+    utc = str((state.get("Heartbeat") or {}).get("Utc") or "")
+    try:
+        return datetime.fromisoformat(utc.rstrip("Z")[:26]).replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return None
+
+
+def replay_snapshots(src: Path, ReplaySource) -> list:
+    """Estados a cada REPLAY_EVERY segundos de todas as partes da gravação, num relógio só: cada parte é
+    deslocada pela diferença do Heartbeat para a primeira (sem Heartbeat, emenda no fim da anterior)."""
+    snaps, epoch0 = [], None
+    for path in recording_parts(src):
+        # o ReplaySource altera o mesmo estado a cada mensagem: cada momento precisa de uma cópia própria
+        part = [[clock, slim_state(json.loads(json.dumps(state)))]
+                for clock, state in ReplaySource(str(path), interval=REPLAY_EVERY)]
+        if not part:
+            continue
+        epochs = [heartbeat(state) - clock for clock, state in part if heartbeat(state)]
+        epoch = epochs[0] if epochs else None
+        if epoch0 is None:
+            epoch0 = epoch
+        if snaps and (epoch is None or epoch0 is None):
+            shift = snaps[-1][0] + REPLAY_EVERY - part[0][0]
+        else:
+            shift = (epoch - epoch0) if snaps else 0.0
+        snaps += [[clock + shift, state] for clock, state in part if not snaps or clock + shift > snaps[-1][0]]
+    return snaps
+
+
 def newest(prefix: str) -> Path:
     runs = sorted((ROOT / "runs").glob(f"{prefix}_*"), key=lambda p: p.stat().st_mtime)
     if not runs:
@@ -110,14 +157,27 @@ def export(gru: Path | None, naive: Path | None) -> None:
         for name in ("session.json", "laps.parquet"):
             shutil.copy2(src / name, dest / name)
         if (src / "predictions.parquet").exists():
-            pd.read_parquet(src / "predictions.parquet", columns=PREDICTION_COLUMNS).to_parquet(dest / "predictions.parquet", index=False)
-        # o ReplaySource altera o mesmo estado a cada mensagem: cada momento precisa de uma cópia própria
-        snaps = [[clock, slim_state(json.loads(json.dumps(state)))]
-                 for clock, state in ReplaySource(str(src / "recording.jsonl"), interval=REPLAY_EVERY)]
+            pred = pd.read_parquet(src / "predictions.parquet", columns=PREDICTION_COLUMNS)
+            pred.to_parquet(dest / "predictions.parquet", index=False)
+            # o modelo que fez as previsões ao vivo: configuração e métricas, para a legenda da aba
+            for run in pred["gru_run"].dropna().unique():
+                run_dir, run_dest = ROOT / "runs" / run, FILES / "runs" / run
+                if not run_dest.exists() and (run_dir / "config.json").exists():
+                    run_dest.mkdir(parents=True)
+                    for name in ("config.json", "metrics.json"):
+                        shutil.copy2(run_dir / name, run_dest / name)
+        parts = recording_parts(src)
+        snaps = replay_snapshots(src, ReplaySource)
         with gzip.open(dest / "replay.json.gz", "wt", encoding="utf-8", compresslevel=9) as f:
             json.dump(snaps, f, ensure_ascii=False, separators=(",", ":"))
-        print(f"reprodução {session}: {len(snaps)} estados ({snaps[-1][0] / 60:.0f} min) · "
-              f"{(dest / 'replay.json.gz').stat().st_size / 1e6:.1f} MB")
+        print(f"reprodução {session}: {len(snaps)} estados ({snaps[-1][0] / 60:.0f} min, {len(parts)} "
+              f"{'partes' if len(parts) > 1 else 'parte'}) · {(dest / 'replay.json.gz').stat().st_size / 1e6:.1f} MB")
+
+    dest = FILES / "data" / "processed" / "replay"
+    dest.mkdir(parents=True)
+    for f in sorted(RACE_REPLAYS.glob("*.json")):
+        shutil.copy2(f, dest / f.name)
+        print(f"aba Replay: {f.name} · {f.stat().st_size / 1e6:.1f} MB")
 
     assets = FILES / "assets"
     assets.mkdir()

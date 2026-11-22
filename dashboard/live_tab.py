@@ -8,7 +8,7 @@ import streamlit as st
 from dashboard import data, duels_view
 from live.feed import DEFAULT_URL, STALE_AFTER, heartbeat_age, heartbeat_time
 from live.laps import as_list, session_key, sub
-from modeling.figures import COMPOUND_LETTER, compound_color, lap_times, live_forecast
+from modeling.figures import COMPOUND_LETTER, compound_color, fmt_lap, lap_times, live_forecast
 
 RACE_REPORT = "https://github.com/schneiderweisse/Neural_Stints/blob/main/docs/race_reports/2026_sao_paulo.md"
 
@@ -60,6 +60,37 @@ def sector_cell(sector) -> str:
 def segment_legend() -> str:
     return "<div class='minis-legend'>Minissetores:" + "".join(
         f"<span><i style='background:{c}'></i>{html.escape(t)}</span>" for c, t in SEGMENT_LEGEND) + "</div>"
+
+
+def lap_seconds(value) -> float | None:
+    """'1:38.102' (ou '58.3') -> segundos."""
+    try:
+        m, sec = str(value).split(":") if ":" in str(value) else ("0", str(value))
+        return int(m) * 60 + float(sec)
+    except ValueError:
+        return None
+
+
+def next_lap_forecasts(preds: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Previsão de cada volta feita na volta anterior (h = 1), indexada por (piloto, volta)."""
+    if preds is None or preds.empty:
+        return None
+    p = preds[preds["h"] == 1].sort_values("t").drop_duplicates(["driver", "lap"], keep="last")
+    return p.set_index(["driver", "lap"])[["time_p10", "time_p50", "time_p90"]]
+
+
+def forecast_cell(fc: pd.DataFrame | None, tla: str, lap: int | None, real: float | None = None) -> str:
+    """p50 previsto para a volta (faixa de 80% no tooltip); com o tempo real, mostra também real − previsto."""
+    if fc is None or lap is None or (tla, lap) not in fc.index:
+        return "<td class='mono fc'>—</td>"
+    q = fc.loc[(tla, lap)]
+    tip = f"volta {lap} · faixa de 80%: {fmt_lap(q['time_p10'])} a {fmt_lap(q['time_p90'])}"
+    err = ""
+    if real is not None:
+        d = real - q["time_p50"]
+        inside = q["time_p10"] <= real <= q["time_p90"]
+        err = f"<span class='fc-err {'in' if inside else 'out'}'>{d:+.2f}</span>"
+    return f"<td class='mono fc' title='{html.escape(tip)}'>{fmt_lap(q['time_p50'])}{err}</td>"
 
 
 def timing_rows(state: dict) -> tuple[list[dict], bool]:
@@ -123,11 +154,17 @@ def position_moves(rows: list[dict], key: str, stamp: float | None) -> dict[str,
     return {n: (m[0], m[1]) for n, m in active.items()}
 
 
-def timing_table(state: dict, moves: dict[str, tuple[int, str]] | None = None) -> str:
+def timing_table(state: dict, moves: dict[str, tuple[int, str]] | None = None, preds: pd.DataFrame | None = None) -> str:
+    """Cronometragem; numa corrida com previsões, mais duas colunas da rede ao lado da última volta."""
     rows, race = timing_rows(state)
     moves = moves or {}
+    fc = next_lap_forecasts(preds) if race else None
+    pred_head = ["<span title='p50 previsto para a última volta, feito na volta anterior; ao lado, real − previsto "
+                 "(verde: dentro da faixa de 80%)'>Prev. última volta</span>",
+                 "<span title='p50 previsto para a volta em andamento; a faixa de 80% fica no tooltip da célula'>"
+                 "Prev. volta atual</span>"] if fc is not None else []
     head = ["Pos", "Piloto", "Melhor volta", "Gap" if race else "Dif. melhor", "Intervalo" if race else "Dif. à frente",
-            "Última volta", "S1", "S2", "S3", "Pneu", "Voltas", "Paradas", ""]
+            "Última volta", *pred_head, "S1", "S2", "S3", "Pneu", "Voltas", "Paradas", ""]
     out = ["<div class='timing-wrap'><table class='timing'><thead><tr>" + "".join(f"<th>{h}</th>" for h in head) +
            "</tr></thead><tbody>"]
     for r in rows:
@@ -152,13 +189,24 @@ def timing_table(state: dict, moves: dict[str, tuple[int, str]] | None = None) -
             f"<td><span class='dot' style='background:{r['color']}'></span><b>{html.escape(r['tla'])}</b>"
             f"<span class='team'>{html.escape(r['team'])}</span></td>" +
             cell(r["best"]) + cell(r["gap"]) + cell(r["interval"]) +
-            cell(last.get("Value", ""), timing_color(last)) +
+            cell(last.get("Value", ""), timing_color(last)) + pred_cells(fc, r, last) +
             "".join(sector_cell(s) for s in sectors[:3]) +
             f"<td class='mono'>{tyre}</td>" + cell(r["laps"]) + cell(r["pits"]) + f"<td>{status}</td></tr>")
     out.append("</tbody></table></div>")
     if any(isinstance(s, dict) and s.get("Segments") for r in rows for s in r["sectors"]):
         out.append(segment_legend())
     return "".join(out)
+
+
+def pred_cells(fc: pd.DataFrame | None, r: dict, last: dict) -> str:
+    """Prev. última volta (com real − previsto) e prev. volta atual, para uma linha da cronometragem."""
+    if fc is None:
+        return ""
+    done = int(r["laps"]) if str(r["laps"]).isdigit() else None
+    if done is None:
+        return forecast_cell(None, r["tla"], None) * 2
+    return (forecast_cell(fc, r["tla"], done, lap_seconds(last.get("Value"))) +
+            forecast_cell(fc, r["tla"], done + 1))
 
 
 FINISHED = {"Finished", "Finalised", "Ends"}
@@ -229,14 +277,14 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
     st.markdown(session_header(state, clock_label, mode), unsafe_allow_html=True)
     rows, race = timing_rows(state)
     moves = position_moves(rows, f"order_{mode == 'live'}_{session_dir.name if session_dir else 'live'}", clock)
-    st.markdown(timing_table(state, moves), unsafe_allow_html=True)
+    preds = data.read_parquet_fresh(session_dir / "predictions.parquet") if session_dir else None
+    st.markdown(timing_table(state, moves, preds), unsafe_allow_html=True)
 
     laps_all = laps = data.read_parquet_fresh(session_dir / "laps.parquet") if session_dir else None
     if laps is not None and clock is not None:
         # lidas ao vivo, as voltas guardam o horário real; refeitas da gravação, o tempo desde o início dela
         live_clock = laps["clock"].max() > 1e8
         laps = laps[laps["clock"] <= (heartbeat_time(state) or float("inf") if live_clock else clock)]
-    preds = data.read_parquet_fresh(session_dir / "predictions.parquet") if session_dir else None
     if race and preds is not None and not preds.empty and laps is not None and not laps.empty:
         duels_view.render(rows, laps, laps_all, preds, session_dir.name, recorded=clock is not None, demo=demo)
     st.subheader("Tempos de volta")

@@ -37,6 +37,10 @@ table.timing .tyre {display: inline-block; border: 2px solid; border-radius: 50%
 table.timing .badge {border: 1px solid #30363d; border-radius: 2em; padding: 0 8px; font-size: 11px; color: #d29922;}
 .timing-wrap {overflow-x: auto;}
 table.timing td.sector {min-width: 78px; padding-top: 4px;}
+table.timing td.fc {color: #a5d6ff;}
+table.timing .fc-err {font-size: 11px; margin-left: 6px;}
+table.timing .fc-err.in {color: #3fb950;}
+table.timing .fc-err.out {color: #d29922;}
 /* troca de posição: a linha ganha destaque no lugar antigo (--d linhas abaixo ou acima), desliza até o
    lugar novo e o destaque se apaga. Duas fases iguais (a/b) para a animação recomeçar numa nova troca. */
 table.timing tr.gain {--hl: rgba(63,185,80,.30); --edge: #3fb950;}
@@ -72,6 +76,14 @@ table.timing tr.loss > td {z-index: 1;}
 .duel-out {font-size: 12.5px; margin-top: 5px; font-weight: 500;}
 .duel-out.hit {color: #3fb950;} .duel-out.miss {color: #f85149;} .duel-out.stop {color: #7d8590;}
 .duel-now {color: #d29922; font-size: 13px; margin: 2px 0 8px;}
+.trackmap {display: block; max-height: 78vh; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;}
+.map-order {font-size: 13px; border: 1px solid #30363d; border-radius: 6px; padding: 4px 0;}
+.map-row {display: flex; align-items: center; gap: 8px; padding: 3px 10px; border-bottom: 1px solid #21262d; color: #e6edf3;}
+.map-row:last-child {border-bottom: none;}
+.map-row .pos {width: 20px; color: #7d8590; text-align: right;}
+.map-row .dot {display: inline-block; width: 4px; height: 14px; border-radius: 2px;}
+.map-row .gap {margin-left: auto; color: #7d8590;}
+.map-row .badge {border: 1px solid #30363d; border-radius: 2em; padding: 0 6px; font-size: 11px; color: #d29922;}
 .duel-legend {display: flex; flex-wrap: wrap; gap: 4px 16px; color: #7d8590; font-size: 12px; margin: 2px 0 8px;}
 .duel-legend span {display: inline-flex; align-items: center; gap: 6px;}
 .duel-legend span.axis {flex-basis: 100%; font-size: 11.5px;}

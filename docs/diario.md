@@ -2,7 +2,45 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 22 de novembro de 2026
+
+### GP de Las Vegas ao vivo
+
+- **A corrida:** foram 50 voltas, decididas por pouco. Na linha de chegada, Verstappen terminou 0,639 s à frente de Norris; Piastri chegou a 1,529 s e Antonelli a 2,574 s.
+- **Gravação:** o f1-dash só foi ligado com a corrida em andamento, então a gravação começa na volta 12. O `laps.parquet` tem 749 voltas de 21 pilotos. O modelo ao vivo foi a LSTM com regulamento (`lstm_20261120_ens5`).
+- **O painel ganhou quatro recursos durante a corrida:**
+  - **Duelos:** a última volta real de cada piloto, com "(box)" nas voltas de parada.
+  - **Cronometragem:** duas colunas com a previsão (p50) da rede. Uma mostra a previsão para a última volta, com o erro (real − previsto); a outra, a previsão para a volta atual. A faixa de 80% aparece ao passar o mouse. O erro fica verde quando o tempo real cai dentro da faixa e amarelo quando cai fora.
+  - **Gráfico do duelo:** a projeção agora parte do gap na linha ao fim da última volta (a diferença dos gaps para o líder), como no backtest. Antes, partia do intervalo ao vivo. O ponto inicial do gráfico mostra esse gap.
+  - **Aba Mapa:** o traçado do circuito, com os carros na cor da equipe e a ordem ao lado.
+    - O traçado vem do MultiViewer, a mesma fonte do f1-dash, e fica em cache em `data/live/maps/`.
+    - O feed não traz mais as coordenadas dos carros. Por isso, a posição é estimada pelos minissetores, com até um minissetor de erro (~270 m em Las Vegas). Carros no mesmo minissetor são espaçados pelo gap até o líder.
+    - A pista fica amarela com safety car, VSC ou bandeira amarela, e vermelha com bandeira vermelha.
+- **Queda às 01h46:** todos os terminais fecharam, inclusive o do f1-dash. Às 01h49, tudo já estava de volta:
+  - a gravação seguiu em `recording_2.jsonl`;
+  - o `live.reader` retomou de `laps.parquet`;
+  - a volta 23 ficou com apenas 13 dos 19 pilotos.
+- **Previsões perdidas:** o `live.predict` reiniciado começou com a memória vazia e regravou `predictions.parquet`. Com isso, as previsões feitas antes das 01h49 se perderam.
+  - O arquivo guarda 514 origens (piloto × volta), da volta 17 à 49, todas feitas depois da queda.
+  - Não há previsões com origem nas voltas 18 a 20.
+  - Fica pendente fazer o previsor carregar o arquivo existente quando reinicia.
+
 ## 21 de novembro de 2026
+
+### Preparação para o GP de Las Vegas
+
+- **Dados:** `fetch_tracinginsights.py 2026` trouxe os três treinos livres e o quali de Las Vegas.
+  - O quali foi seco: 395 voltas, todas com pneu macio, e 22 pilotos.
+  - Os treinos tiveram chuva: 431 das 1.064 voltas foram com pneu intermediário ou de chuva.
+- **Referência:** a regra é a do treino, a melhor volta seca do quali. O `event_reference` acha o quali no TracingInsights, e todos os 22 pilotos têm referência do quali. A pole de referência é a de Antonelli, 93,893 s.
+- **Bearman:** ele não fez volta lançada no quali. A melhor volta dele foi 108,005 s, 15% acima da de Antonelli, e mesmo assim a regra a usa.
+  - No treino, 1% dos pilotos-corrida têm referência mais de 20% acima da melhor do evento; um exemplo é Verstappen em Melbourne 2026.
+  - A referência fica como está, para seguir a regra do treino. A previsão dele sai em ritmo relativo a 108 s e volta para segundos pela mesma referência.
+- **Compostos:** a nominação de 2026 é C3, C4 e C5 em Las Vegas e em Abu Dhabi, e C1, C2 e C3 no Catar. Eles entraram em `data/reference/compounds.csv`. A rede não usa a dureza; ela serve para as análises.
+- **Ensaio:** uma corrida falsa, com as voltas de Interlagos cortadas em 50, o `session.json` de Las Vegas e o modelo padrão, rodou de ponta a ponta.
+  - O circuito, as equipes-ano de 2026 e o regulamento existem no vocabulário. Só Cameron cai em `<unk>`, como em Interlagos.
+  - Foram 954 previsões, a ~0,2 s cada, o que dá ~4 s por volta para 22 pilotos.
+- **`live.predict --session`:** agora espera o `live.reader` criar a pasta. Antes, com a pasta ainda inexistente, o previsor quebrava. Sem `--session`, ele pegaria a corrida de Interlagos, que é a mais recente em `data/live` até a largada.
 
 ### Modelo ao vivo da v1: a LSTM com regulamento
 

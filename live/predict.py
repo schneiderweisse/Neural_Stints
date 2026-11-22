@@ -15,6 +15,7 @@ Só faz sentido em corridas (e sprints): os treinos livres não têm total de vo
 Uso, a partir da pasta Neural_Stints:
     .venv/Scripts/python -m live.predict                           # sessão de corrida mais recente
     .venv/Scripts/python -m live.predict --session 2026_interlagos_race
+    .venv/Scripts/python -m live.predict --session 2026_las_vegas_race   # espera a pasta se ela ainda não existir
     .venv/Scripts/python -m live.predict --session <pasta> --once  # todas as voltas de uma vez (avaliação)
 """
 import argparse
@@ -202,6 +203,10 @@ def main() -> None:
     args = ap.parse_args()
 
     session_dir = LIVE / args.session if args.session else None
+    # com --session, espera o live.reader criar a pasta (dá para abrir o previsor antes da largada)
+    while session_dir is not None and not (session_dir / "session.json").exists():
+        print(f"{datetime.now():%H:%M:%S} {session_dir.name} ainda não existe em data/live; aguardando o live.reader…")
+        time.sleep(args.interval * 5)
     while session_dir is None:
         session_dir = latest_race_session()
         if session_dir is None:

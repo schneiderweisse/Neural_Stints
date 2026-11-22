@@ -59,6 +59,25 @@ def recent_pace(laps_now: pd.DataFrame, drv: str) -> float | None:
     return float(d["lap_time"].mean()) if len(d) else None
 
 
+def last_lap(laps_now: pd.DataFrame, drv: str) -> tuple[int, float, bool] | None:
+    """Última volta com tempo do piloto: número, tempo e se foi volta de box."""
+    d = laps_now[(laps_now["driver"] == drv) & laps_now["lap_time"].notna()]
+    if d.empty:
+        return None
+    r = d.sort_values("lap").iloc[-1]
+    return int(r["lap"]), float(r["lap_time"]), bool(r["pit_in"] == True or r["pit_out"] == True)
+
+
+def line_gap(laps_now: pd.DataFrame, behind: str, ahead: str, t: int) -> float | None:
+    """Gap do carro de trás para o da frente na linha, ao fim da volta t (diferença dos gaps para o líder)."""
+    r = laps_now[(laps_now["lap"] == t) & laps_now["driver"].isin([behind, ahead])]
+    g = r.drop_duplicates("driver", keep="last").set_index("driver")["gap_leader"]
+    if behind not in g.index or ahead not in g.index or pd.isna(g[behind]) or pd.isna(g[ahead]):
+        return None
+    gap = float(g[behind] - g[ahead])
+    return gap if gap >= 0 else None
+
+
 def outcome(laps_all: pd.DataFrame, behind: str, ahead: str, t: int, gap0: float) -> dict:
     """O que aconteceu nas H voltas depois de t.
 
@@ -99,7 +118,7 @@ def outcome(laps_all: pd.DataFrame, behind: str, ahead: str, t: int, gap0: float
 
 
 def sparkline(gap0: float, proj: dict, window: dict, t: int, real: list[float] | None = None,
-              w: int = 300, h: int = 104) -> str:
+              w: int = 300, h: int = 104, on_line: bool = False) -> str:
     """Gap projetado (linha e faixa de 80%), a zona de ataque (1 s), a linha da ultrapassagem (0 s), a janela
     prevista e, na gravação, o gap real. O eixo horizontal traz o número de cada volta; a primeira, em
     destaque, é a volta em que a previsão foi feita."""
@@ -129,14 +148,19 @@ def sparkline(gap0: float, proj: dict, window: dict, t: int, real: list[float] |
     # "1 s" fica logo acima da sua linha e "0 s" logo abaixo da dela, para não se sobreporem
     parts.append(f"<text x='{pl - 4}' y='{y1 - 1:.1f}' fill='{AMBER}' font-size='9' text-anchor='end'>1 s</text>")
     parts.append(f"<text x='{pl - 4}' y='{y0 + 8:.1f}' fill='{HIT}' font-size='9' text-anchor='end'>0 s</text>")
-    if abs(y(gap0) - y1) >= 11:
-        parts.append(f"<text x='{pl - 4}' y='{y(gap0) + 3:.1f}' fill='{MUTED}' font-size='9' text-anchor='end'>{gap0:.1f}</text>")
     parts.append(f"<g clip-path='url(#{clip})'><polygon points='{band}' fill='{BAND}' stroke='none'/>")
     parts.append(f"<polyline points='{pts(mu)}' fill='none' stroke='{LINE}' stroke-width='2'/>")
     if len(real) > 1:
         parts.append(f"<polyline points='{pts(real)}' fill='none' stroke='{INK}' stroke-width='1.2' stroke-dasharray='2 2'/>")
         parts += [f"<circle cx='{x(k):.1f}' cy='{y(v):.1f}' r='2.4' fill='{INK}'/>" for k, v in enumerate(real) if k]
     parts.append("</g>")
+    # ponto de partida da projeção: o gap na linha ao fim da volta t, com o valor escrito ao lado
+    gy = y(gap0)
+    label = f"{gap0:.2f} s" + (f" (fim da v{t})" if on_line else " (agora)")
+    ly = gy - 6 if gy - 6 > pt + 8 else gy + 13
+    parts.append(f"<circle cx='{x(0):.1f}' cy='{gy:.1f}' r='3.2' fill='{INK}' stroke='#0d1117' stroke-width='1'/>")
+    parts.append(f"<text x='{x(0) + 6:.1f}' y='{ly:.1f}' fill='{INK}' font-size='9.5' font-weight='600' "
+                 f"paint-order='stroke' stroke='#0d1117' stroke-width='3'>{label}</text>")
     for k in range(n + 1):
         color, weight = (INK, 600) if k == 0 else (MUTED, 400)
         parts.append(f"<text x='{x(k):.1f}' y='{h - 5}' fill='{color}' font-size='8.5' font-weight='{weight}' "
@@ -150,6 +174,7 @@ def legend(show_real: bool) -> str:
     def sw(body: str) -> str:
         return f"<svg width='24' height='10' viewBox='0 0 24 10' aria-hidden='true'>{body}</svg>"
     items = [
+        (sw(f"<circle cx='12' cy='5' r='3.2' fill='{INK}'/>"), "gap na linha ao fim da última volta (início da projeção)"),
         (sw(f"<line x1='1' x2='23' y1='5' y2='5' stroke='{LINE}' stroke-width='2'/>"), "gap previsto pela rede"),
         (sw(f"<rect x='1' y='1' width='22' height='8' fill='{BAND}'/>"), "faixa de 80% do gap"),
         (sw(f"<rect x='1' y='0' width='22' height='10' fill='{WINDOW_FILL}' stroke='{AMBER}' stroke-opacity='.35'/>"),
@@ -179,11 +204,23 @@ def card(pair: dict, show_outcome: bool) -> str:
                 + (f" → {html.escape(faster)} {abs(diff):.2f} s por volta mais rápido" if abs(diff) >= 0.005 else " → mesmo ritmo"))
     else:
         pace = "ritmo: poucas voltas ainda"
-    body = f"<div class='duel-meta'>gap {pair['gap0']:.3f} s · {pace}</div>"
+    last = []
+    for d, ll in ((b, pair.get("last_b")), (a, pair.get("last_a"))):
+        if ll:
+            last.append((d["tla"], *ll))
+    if last:
+        same = len({x[1] for x in last}) == 1
+        lap_txt = "".join(f"{html.escape(tla)} <b>{fmt_lap(sec)}</b>{'' if same else f' (v{lap})'}{' (box)' if box else ''} · "
+                          for tla, lap, sec, box in last).removesuffix(" · ")
+        last_line = f"<br>última volta{f' ({last[0][1]})' if same else ''}: {lap_txt}"
+    else:
+        last_line = ""
+    body = f"<div class='duel-meta'>gap agora {pair['gap0']:.3f} s · {pace}{last_line}</div>"
     if pair.get("note"):
         return f"<div class='duel'>{head}{body}<div class='duel-note'>{html.escape(pair['note'])}</div></div>"
     proj, w, t = pair["proj"], pair["window"], pair["t"]
-    text = duels.describe(pair["gap0"], proj, t)
+    origin = pair.get("origin", pair["gap0"])
+    text = duels.describe(origin, proj, t)
     real, result = None, ""
     if show_outcome and pair.get("outcome"):
         o = pair["outcome"]
@@ -198,7 +235,7 @@ def card(pair: dict, show_outcome: bool) -> str:
         else:
             hit = w["likely"] is None
             result = (f"<div class='duel-out {'hit' if hit else 'miss'}'>{'✔' if hit else '✘'} Não houve disputa nas {H} voltas seguintes</div>")
-    return (f"<div class='duel'>{head}{body}{sparkline(pair['gap0'], proj, w, t, real)}"
+    return (f"<div class='duel'>{head}{body}{sparkline(origin, proj, w, t, real, on_line=pair.get('on_line', False))}"
             f"<div class='duel-text'>{html.escape(text)}</div>"
             f"{result}</div>")
 
@@ -220,7 +257,8 @@ def render(rows: list[dict], laps_now: pd.DataFrame, laps_all: pd.DataFrame, pre
     def build(behind: str, ahead: str, gap0: float, pinned_pair: bool) -> dict:
         b, a = by_tla[behind], by_tla[ahead]
         pair = {"behind": b, "ahead": a, "gap0": gap0, "pinned": pinned_pair,
-                "pace_b": recent_pace(laps_now, behind), "pace_a": recent_pace(laps_now, ahead)}
+                "pace_b": recent_pace(laps_now, behind), "pace_a": recent_pace(laps_now, ahead),
+                "last_b": last_lap(laps_now, behind), "last_a": last_lap(laps_now, ahead)}
         if b["compound"] in WET or a["compound"] in WET:
             pair["note"] = "Fora do domínio da rede: pneu de chuva."
         elif b["status"] in ("box", "saída do box") or a["status"] in ("box", "saída do box"):
@@ -231,12 +269,16 @@ def render(rows: list[dict], laps_now: pd.DataFrame, laps_all: pd.DataFrame, pre
             t, mb = fc[behind]
             _, ma = fc[ahead]
             pair["t"] = t
-            pair["proj"] = duels.project(gap0, mb, ma)
+            # a previsão parte do fim da volta t: a projeção começa no gap na linha nessa volta (como no
+            # backtest); sem ele, usa o intervalo atual da cronometragem
+            g_line = line_gap(laps_now, behind, ahead, t)
+            pair["origin"], pair["on_line"] = (g_line, True) if g_line is not None else (gap0, False)
+            pair["proj"] = duels.project(pair["origin"], mb, ma)
             pair["window"] = duels.catch_window(pair["proj"]["caught"])
             if not len(pair["proj"]["caught"]):
                 pair["note"] = "Sem previsão para as próximas voltas (fim da corrida)."
             elif recorded:
-                pair["outcome"] = outcome(laps_all, behind, ahead, t, gap0)
+                pair["outcome"] = outcome(laps_all, behind, ahead, t, pair["origin"])
         return pair
 
     pairs, seen = [], set()

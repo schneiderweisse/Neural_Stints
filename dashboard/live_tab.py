@@ -307,7 +307,7 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
     if preds is None or preds.empty:
         if demo:
             st.caption("Nesta corrida não há previsões da rede: 2019 é anterior aos dados de treino (2022 a 2026). "
-                       "O ajuste do modelo está nas abas GRU v0 e Tarefas A e B; ao vivo, no painel completo, a "
+                       "O ajuste do modelo está nas abas GRU e Tarefas A e B; ao vivo, no painel completo, a "
                        "previsão das próximas 10 voltas aparece aqui a cada volta.")
         elif str(sub(state, "SessionInfo", "Type") or "").lower() in ("race", "sprint"):
             st.caption("Previsões da rede: rode `python -m live.predict` para vê-las aqui.")
@@ -340,7 +340,9 @@ def render_body(state: dict, session_dir, clock: float | None, clock_label: str 
             title = f"{picked[0]}: previsão feita ao fim da volta {anchors[picked[0]]}" if anchors else picked[0]
         else:
             title = "Previsão feita ao fim da volta: " + " · ".join(f"{d} {t}" for d, t in anchors.items())
-        chart = live_forecast(laps[laps["driver"].isin(picked)], pd.concat(latest) if latest else preds.iloc[:0], title)
+        name = "LSTM" if "gru_run" in preds and str(preds["gru_run"].iloc[-1]).startswith("lstm") else "GRU"
+        chart = live_forecast(laps[laps["driver"].isin(picked)], pd.concat(latest) if latest else preds.iloc[:0], title,
+                              model=name)
         st.plotly_chart(chart, width="stretch", config={"displaylogo": False})
     # só as voltas previstas que já foram disputadas até este momento (na gravação, o resto é "futuro")
     done = preds[preds["time_real"].notna() & preds["clean"]].merge(laps[["driver", "lap"]], on=["driver", "lap"])

@@ -1,4 +1,4 @@
-"""Aba GRU v0: resultados do ajuste da rede contra o baseline ingênuo."""
+"""Aba GRU: resultados do ajuste da rede contra o baseline ingênuo."""
 import pandas as pd
 import streamlit as st
 
@@ -73,7 +73,7 @@ def render() -> None:
     st.caption(f"Corridas que a rede não viu no treino nem na escolha da época. A validação, usada para escolher a "
                f"época, foi {names('val')}.")
     cols = st.columns(5)
-    tile(cols[0], "MAE GRU v0", f"{gt['overall']['mae_s']:.3f} s", f"ingênuo {nt['overall']['mae_s']:.3f} s")
+    tile(cols[0], "MAE GRU", f"{gt['overall']['mae_s']:.3f} s", f"ingênuo {nt['overall']['mae_s']:.3f} s")
     tile(cols[1], "Melhora sobre o ingênuo", f"{gt['skill_vs_reference']['overall']:+.0%}",
          f"de {gt['skill_vs_reference']['by_h']['1']:+.0%} (h=1) a {gt['skill_vs_reference']['by_h']['10']:+.0%} (h=10)")
     tile(cols[2], "Cobertura p10–p90", f"{gt['overall']['coverage_80']:.0%}", "alvo: 80%")

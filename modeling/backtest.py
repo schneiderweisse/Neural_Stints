@@ -52,7 +52,7 @@ def driver_table(m: pd.DataFrame, laps: pd.DataFrame) -> pd.DataFrame:
 
 
 def tiles(race: str, s: dict) -> str:
-    items = [("MAE GRU v0", f"{s['mae_gru']:.3f} s"), ("MAE ingênuo", f"{s['mae_naive']:.3f} s"),
+    items = [("MAE GRU", f"{s['mae_gru']:.3f} s"), ("MAE ingênuo", f"{s['mae_naive']:.3f} s"),
              ("Melhora sobre o ingênuo", f"{s['skill']:+.0%}"), ("Cobertura p10–p90", f"{s['coverage']:.0%}"),
              ("Depois de uma parada", f"{s['after_pit_gru']:.2f} s × {s['after_pit_naive']:.2f} s")]
     cells = "".join(f'<div class="tile"><div class="tl">{k}</div><div class="tv">{v}</div></div>' for k, v in items)
@@ -127,7 +127,7 @@ def main() -> None:
                           args.races)
     page = (f"<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' "
             f"content='width=device-width,initial-scale=1'><title>Backtest Neural Stints</title><style>{CSS}</style>"
-            f"</head><body><main><h1>Backtest: GRU v0 × ingênuo</h1>"
+            f"</head><body><main><h1>Backtest: GRU × ingênuo</h1>"
             f"<p>Runs {gru_dir.name} e {naive_dir.name}. Corridas do conjunto de teste, que a rede não viu no treino "
             f"nem na escolha da época. Métricas nas voltas limpas previstas pelos dois modelos.</p>"
             f"<h2>Erro por horizonte</h2>"

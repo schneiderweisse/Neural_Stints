@@ -2,6 +2,62 @@
 
 Registro do que foi feito e decidido em cada dia de trabalho, da entrada mais recente para a mais antiga.
 
+## 27 de novembro de 2026
+
+### Aba LSTM: o modelo ao vivo por dentro
+
+- **O pedido:** uma aba com a avaliação da rede, o processo de treino (épocas, parada antecipada, dropout) e os parâmetros (camadas, portões).
+- **Ficha do modelo (`modeling/model_card.py`):** lê o `model.pt` dos 5 membros e grava `runs/lstm_20261120_ens5/model_card.json`, porque o painel e a demo (que roda sem PyTorch) não abrem os pesos. A ficha tem:
+  - **Camadas e parâmetros:** a soma confere com o total do treino, 19.957 por rede e 99.785 no ensemble.
+    - Embeddings: 104 (circuito), 132 (piloto), 208 (equipe-ano) e 6 (regulamento).
+    - Contexto: 272. Estados iniciais h₀ e c₀: 1.088.
+    - Encoder LSTM: 10.240. Decoder LSTM: 7.808. Saída: 99.
+  - **Portões:** o peso médio absoluto de cada entrada em cada portão (entrada, esquecimento, candidato, saída), o peso recorrente e o viés.
+  - **Embeddings:** os vetores de uma semente, em 2 dimensões por PCA.
+- **A aba (`dashboard/lstm_tab.py`) tem cinco seções:**
+  - **Arquitetura:** o diagrama do encoder–decoder com as dimensões reais (46 entradas por volta no encoder, 27 no decoder, estado 32, contexto 16), a tabela de camadas e as equações da célula LSTM.
+  - **Portões:** o mapa de calor dos pesos por entrada e portão, no encoder e no decoder, e o viés por portão.
+    - A entrada que mais mexe nos portões de entrada e candidato do encoder é "entrada no box". Depois vêm o ritmo da volta e o do setor 3, e "chuva" no candidato.
+    - Os vieses médios do encoder ficaram entre −0,01 e 0,15. Cada viés é a soma de dois vetores que o PyTorch sorteia entre ±0,18.
+    - É uma leitura dos pesos da primeira camada, não uma medida de importância.
+  - **Embeddings:** circuito, piloto e equipe-ano em 2 dimensões.
+  - **Treino:**
+    - As curvas de perda por semente e o MAE de validação a 1 volta.
+    - A tabela da parada antecipada: melhores épocas 20, 31, 9, 28 e 13, e cada semente roda a melhor + 8.
+    - Os hiperparâmetros com o papel de cada um.
+    - A busca que escolheu estado 32 e dropout 0,1 (bateria `cells_20261120`). O estado 64 sobreajusta cedo, e o dropout 0,2 empata.
+  - **Avaliação:** o erro por horizonte da LSTM, da GRU e do ingênuo, a calibração, os recortes por composto e por stint, e a tabela por corrida.
+    - No teste, o MAE é 0,460 s, contra 0,655 s do ingênuo, com cobertura de 87%.
+    - Ao vivo em Las Vegas, contando só as previsões feitas durante a corrida, o MAE foi 0,637 s em 4.075 voltas limpas, com cobertura de 83%: de 0,57 s a 1 volta até 0,74 s a 10.
+- **Gráficos:** a LSTM ganhou cor própria (verde), ao lado da GRU (azul) e do ingênuo (laranja).
+- **Nome:** a aba e as legendas "GRU v0" passaram a se chamar só "GRU", no painel, na demo e no relatório de backtest. No gráfico de previsão da aba Ao Vivo, a legenda agora traz o modelo que fez a previsão (LSTM em Las Vegas); antes dizia "GRU v0" para qualquer modelo.
+
+### Aba Stints: o ritmo real de um stint e a projeção da rede
+
+- **O pedido:** numa corrida, acompanhar um stint, por exemplo o de pneu médio do Verstappen (stint 2), com os tempos de volta reais e a performance projetada pela rede.
+- **Corridas:**
+  - **Ao vivo:** Las Vegas, com a LSTM (as previsões feitas na corrida, completadas pelas refeitas onde se perderam), e São Paulo, com a GRU.
+  - **Validação e teste da LSTM:** seis corridas, sem Madring, como na aba Tarefas.
+- **Três jeitos de ver a projeção (`dashboard/stints_tab.py`):**
+  - **Do começo do stint:** a previsão do começo do stint e as feitas a cada 10 voltas dentro dele.
+  - **Volta a volta:** para cada volta, a previsão feita k voltas antes.
+  - **A partir de uma volta escolhida:** as 10 voltas que a rede projetou naquele momento.
+- **O gráfico (`stint_projection`, em `modeling/figures.py`):** mostra os tempos reais (cheios nas voltas limpas, vazios no box e sob SC), a projeção com a faixa de 80%, o SC sombreado e as tendências. A tendência é a degradação em s/volta, real e projetada. Embaixo vêm o MAE, o viés, a cobertura e as duas degradações.
+- **Regras:**
+  - **Origens válidas:** só a partir da volta de entrada no box que abre o stint; antes dela, a previsão é para o pneu anterior.
+  - **Ao vivo:** o previsor não prevê na volta de entrada (o pneu ainda vai mudar), então a primeira previsão com o pneu novo sai no fim da volta de saída.
+  - **Validação e teste:** as conhecidas do futuro são as reais.
+- **VER em Las Vegas, stint 2 (médio, voltas 20–50):**
+  - **Do começo do stint** (previsões das voltas 20, 30 e 40): MAE de 0,341 s e cobertura de 92%. O tempo real caiu 0,090 s por volta (o carro fica mais leve com menos combustível), e a projeção, 0,037.
+  - **Volta a volta, 1 volta antes:** MAE de 0,231 s, e a projeção cai 0,067 s por volta.
+  - **A partir da volta 30:** MAE de 0,178 s nas 10 voltas seguintes.
+
+### Demo
+
+- **Seções novas:** a demo ganhou Stints e LSTM. O `demo/build.py export` agora leva o run da LSTM (`--lstm`) com as previsões enxutas, o histórico, a ficha do modelo e o resumo da busca de hiperparâmetros, além das previsões refeitas de Las Vegas.
+- **Tamanho:** `demo/files` passou de ~10 para ~13 MB, e o `app.zip` tem 9,7 MB. As reproduções refeitas saíram com o mesmo conteúdo e voltaram.
+- **Conferido no navegador:** as duas abas no painel local e na demo servida localmente. Na demo apareceu um erro de texto: a troca do separador de milhar também mexia nas vírgulas da frase. Já está corrigido.
+
 ## 22 de novembro de 2026
 
 ### Demo do GitHub Pages alinhada ao painel

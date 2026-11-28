@@ -114,7 +114,7 @@ Enquanto rodam ao vivo, os três pedem ao Windows para não suspender nem apagar
 .venv/Scripts/python -m live.history 2026_19              # confere: caminho ao vivo × pipeline numa corrida do treino
 ```
 
-O painel tem cinco abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sessão gravada: cronometragem, tempos de volta e, na corrida, as previsões da rede), **Mapa** (o traçado com a posição de cada carro, estimada pelos minissetores, porque o feed não traz as coordenadas), **Replay** (uma corrida já disputada em time-lapse no mapa, acompanhando um piloto: 2 s por volta, e 6 s com zoom quando ele está a menos de 1 s de outro carro; vem da telemetria, com `pipeline.race_replay`. No modo **Duelos previstos pela rede**, cada duelo que a rede previu ao vivo é reproduzido desde a volta da previsão, com o gap previsto e a janela contra o gap real: os que começam, quando o carro de trás chega a menos de 1 s, e os já em curso, quando a rede prevê se ele passa; vem de `modeling.duel_replay`), **GRU v0** (métricas, gráficos e exemplos do modelo treinado contra o ingênuo) e **Tarefas A e B** (previsto × real para até dois pilotos: o ritmo nas k voltas depois do começo da corrida ou de uma parada, e o stint inteiro de um jogo de pneus, com a degradação real e a prevista):
+O painel tem sete abas: **Ao Vivo** (a sessão atual pelo f1-dash, ou uma sessão gravada: cronometragem, tempos de volta e, na corrida, as previsões da rede), **Mapa** (o traçado com a posição de cada carro, estimada pelos minissetores, porque o feed não traz as coordenadas), **Replay** (uma corrida já disputada em time-lapse no mapa, acompanhando um piloto: 2 s por volta, e 6 s com zoom quando ele está a menos de 1 s de outro carro; vem da telemetria, com `pipeline.race_replay`. No modo **Duelos previstos pela rede**, cada duelo que a rede previu ao vivo é reproduzido desde a volta da previsão, com o gap previsto e a janela contra o gap real: os que começam, quando o carro de trás chega a menos de 1 s, e os já em curso, quando a rede prevê se ele passa; vem de `modeling.duel_replay`), **Stints** (um stint de um piloto numa corrida ao vivo ou de validação e teste: os tempos de volta reais e a projeção da rede, feita no começo do stint, volta a volta ou a partir de uma volta escolhida, com a degradação real e a projetada), **LSTM** (o modelo ao vivo por dentro: arquitetura com as dimensões reais, pesos por portão, embeddings, curvas de treino com a parada antecipada, a busca de hiperparâmetros e a avaliação contra a GRU e o ingênuo; a ficha vem de `modeling.model_card`), **GRU** (métricas, gráficos e exemplos do primeiro modelo contra o ingênuo) e **Tarefas A e B** (previsto × real para até dois pilotos: o ritmo nas k voltas depois do começo da corrida ou de uma parada, e o stint inteiro de um jogo de pneus, com a degradação real e a prevista):
 
 ```bash
 .venv/Scripts/streamlit run dashboard/app.py              # http://localhost:8501
@@ -134,7 +134,7 @@ No macOS ou Linux, use `python3` e `.venv/bin/python`.
 pipeline/   scripts de coleta e preparação dos dados
 modeling/   modelos (baselines e redes) e cálculo das métricas
 live/       leitura do live timing (f1-dash ou gravação), gravador, histórico e previsões ao vivo
-dashboard/  painel Streamlit (abas Ao Vivo, com cronometragem, duelos e previsões; Mapa; Replay; GRU v0; Tarefas A e B)
+dashboard/  painel Streamlit (abas Ao Vivo, com cronometragem, duelos e previsões; Mapa; Replay; Stints; LSTM; GRU; Tarefas A e B)
 demo/       demo do painel para o GitHub Pages (stlite, sem a parte ao vivo) e os seus dados enxutos
 runs/       resultados de cada modelo treinado (fora do git)
 data/       dados brutos, intermediários e de referência (ver data/README.md)
@@ -153,7 +153,7 @@ Entrega prevista para o início de dezembro de 2026. Horários de Brasília. O G
 
 ✅ concluído · 🔄 em andamento · ⏳ pendente · 🔴 teste ao vivo
 
-*Atualizado em 22 de novembro de 2026.*
+*Atualizado em 27 de novembro de 2026.*
 
 ### Semana 1 · 2 a 8 de novembro · v0 em Interlagos
 

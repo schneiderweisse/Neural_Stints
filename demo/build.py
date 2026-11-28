@@ -34,12 +34,17 @@ DEMO = ROOT / "demo"
 FILES = DEMO / "files"
 CODE = ["dashboard/__init__.py", "dashboard/data.py", "dashboard/layout.py", "dashboard/live_tab.py",
         "dashboard/model_tab.py", "dashboard/tasks_tab.py", "dashboard/duels_view.py", "dashboard/map_tab.py",
-        "dashboard/replay_tab.py", "dashboard/replay_player.html", "live/__init__.py", "live/feed.py",
+        "dashboard/replay_tab.py", "dashboard/replay_player.html", "dashboard/lstm_tab.py", "dashboard/stints_tab.py",
+        "live/__init__.py", "live/feed.py",
         "live/laps.py", "modeling/__init__.py", "modeling/duels.py", "modeling/figures.py"]
 RUN_FILES = ["config.json", "metrics.json", "history.csv", "predictions.parquet"]
 REPLAY_SESSIONS = ["2026_las_vegas_race", "2026_interlagos_race", "2019_hockenheim_race"]
 RACE_REPLAYS = ROOT / "data" / "processed" / "replay"     # aba Replay: corrida pela telemetria e duelos previstos
 PREDICTION_COLUMNS = ["driver", "t", "h", "lap", "time_p10", "time_p50", "time_p90", "time_real", "clean", "gru_run"]
+# run da LSTM (abas LSTM e Stints): as previsões só com o que as abas usam, a ficha do modelo e a busca de hiperparâmetros
+LSTM_FILES = ["config.json", "metrics.json", "history.csv", "model_card.json"]
+LSTM_PREDICTION_COLUMNS = ["split", "race_id", "race_label", "driver", "t", "h", "lap", "time_p10", "time_p50", "time_p90",
+                           "time_real", "clean"]
 REPLAY_EVERY = 30.0
 RACE_LAPS_COLUMNS = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "pit_out", "neutralised",
                      "position", "compound", "stint", "tyre_life", "fresh_tyre"]
@@ -128,7 +133,26 @@ def newest(prefix: str) -> Path:
     return runs[-1]
 
 
-def export(gru: Path | None, naive: Path | None) -> None:
+def export_lstm(run: Path) -> None:
+    """O run da LSTM das abas LSTM e Stints, enxuto, e o resumo da bateria que escolheu os hiperparâmetros."""
+    import pandas as pd
+    dest = FILES / "runs" / run.name
+    dest.mkdir(parents=True, exist_ok=True)
+    if not (run / "model_card.json").exists():
+        sys.exit(f"falta {run / 'model_card.json'}: rode  python -m modeling.model_card {run}")
+    for name in LSTM_FILES:
+        shutil.copy2(run / name, dest / name)
+    pd.read_parquet(run / "predictions.parquet", columns=LSTM_PREDICTION_COLUMNS).to_parquet(dest / "predictions.parquet", index=False)
+    cfg = json.loads((run / "config.json").read_text(encoding="utf-8"))
+    for battery in {m.split("/")[0] for m in (cfg.get("ensemble") or {}).get("member_paths", [])}:
+        src = ROOT / "runs" / battery / "summary.csv"
+        if src.exists():
+            (FILES / "runs" / battery).mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, FILES / "runs" / battery / "summary.csv")
+    print(f"run {run.name}: {sum(f.stat().st_size for f in dest.iterdir()) / 1e6:.1f} MB")
+
+
+def export(gru: Path | None, naive: Path | None, lstm: Path | None = None) -> None:
     import pandas as pd
     sys.path.insert(0, str(ROOT))
     from live.feed import ReplaySource
@@ -141,6 +165,7 @@ def export(gru: Path | None, naive: Path | None) -> None:
             if (run / name).exists():
                 shutil.copy2(run / name, dest / name)
         print(f"run {run.name}: {sum(f.stat().st_size for f in dest.iterdir()) / 1e6:.1f} MB")
+    export_lstm(lstm or newest("lstm"))
 
     pred = pd.read_parquet(FILES / "runs" / (gru or newest("gru")).name / "predictions.parquet", columns=["race_label"])
     races = pred["race_label"].unique()
@@ -159,6 +184,10 @@ def export(gru: Path | None, naive: Path | None) -> None:
         if (src / "predictions.parquet").exists():
             pred = pd.read_parquet(src / "predictions.parquet", columns=PREDICTION_COLUMNS)
             pred.to_parquet(dest / "predictions.parquet", index=False)
+            # as refeitas (live.predict --once), que a aba Stints usa onde as feitas ao vivo se perderam
+            if (src / "predictions_replay.parquet").exists():
+                pd.read_parquet(src / "predictions_replay.parquet", columns=PREDICTION_COLUMNS).to_parquet(
+                    dest / "predictions_replay.parquet", index=False)
             # o modelo que fez as previsões ao vivo: configuração e métricas, para a legenda da aba
             for run in pred["gru_run"].dropna().unique():
                 run_dir, run_dest = ROOT / "runs" / run, FILES / "runs" / run
@@ -214,11 +243,12 @@ def main() -> None:
     e = sub.add_parser("export", help="copia e enxuga os dados da demo para demo/files")
     e.add_argument("--gru", type=Path, help="pasta do run da GRU (padrão: a mais recente em runs/)")
     e.add_argument("--naive", type=Path, help="pasta do run do ingênuo (padrão: o mais recente)")
+    e.add_argument("--lstm", type=Path, help="pasta do run da LSTM das abas LSTM e Stints (padrão: o mais recente)")
     s = sub.add_parser("site", help="monta o site estático")
     s.add_argument("out", type=Path, nargs="?", default=DEMO / "_site")
     args = ap.parse_args()
     if args.cmd == "export":
-        export(args.gru, args.naive)
+        export(args.gru, args.naive, args.lstm)
     else:
         site(args.out)
 

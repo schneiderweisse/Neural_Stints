@@ -3,6 +3,7 @@
 Cores com papel fixo (validadas para daltonismo nos dois temas): real em tinta neutra, GRU em azul,
 ingênuo em laranja. Compostos nas cores convencionais da F1.
 """
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -10,11 +11,11 @@ from plotly.subplots import make_subplots
 FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
 THEMES = {
     "light": dict(surface="#fcfcfb", ink="#0b0b0b", ink2="#52514e", muted="#898781", grid="#e1e0d9", axis="#c3c2b7",
-                  gru="#2a78d6", naive="#eb6834", band="rgba(42,120,214,0.16)", shade="rgba(137,135,129,0.14)",
-                  hover="#ffffff", hard="#52514e"),
+                  gru="#2a78d6", naive="#eb6834", lstm="#14876a", band="rgba(42,120,214,0.16)",
+                  shade="rgba(137,135,129,0.14)", hover="#ffffff", hard="#52514e"),
     "dark": dict(surface="#0d1117", ink="#e6edf3", ink2="#c9d1d9", muted="#7d8590", grid="#21262d", axis="#30363d",
-                 gru="#3987e5", naive="#d95926", band="rgba(57,135,229,0.22)", shade="rgba(125,133,144,0.18)",
-                 hover="#161b22", hard="#e6edf3"),
+                 gru="#3987e5", naive="#d95926", lstm="#199e70", band="rgba(57,135,229,0.22)",
+                 shade="rgba(125,133,144,0.18)", hover="#161b22", hard="#e6edf3"),
 }
 COMPOUND = {"SOFT": "#f85149", "MEDIUM": "#d29922", "INTERMEDIATE": "#3fb950", "WET": "#2f81f7"}
 COMPOUND_LETTER = {"SOFT": "S", "MEDIUM": "M", "HARD": "H", "INTERMEDIATE": "I", "WET": "W"}
@@ -30,7 +31,8 @@ def compound_color(compound, theme: str) -> str:
 
 def model_style(model: str, theme: str) -> tuple[str, str, str]:
     c = THEMES[theme]
-    return {"gru": ("GRU v0", c["gru"], "solid"), "naive": ("Ingênuo", c["naive"], "dash")}[model]
+    return {"gru": ("GRU", c["gru"], "solid"), "naive": ("Ingênuo", c["naive"], "dash"),
+            "lstm": ("LSTM", c["lstm"], "solid")}[model]
 
 
 def fmt_lap(seconds: float) -> str:
@@ -77,9 +79,10 @@ def mae_by_horizon(metrics: dict[str, dict], races: list[str], theme: str = "lig
     return base_layout(fig, 360, theme)
 
 
-def coverage_by_horizon(by_h: dict[str, dict], theme: str = "dark") -> go.Figure:
-    """Cobertura do intervalo p10–p90 por horizonte, contra o alvo de 80%."""
-    c = THEMES[theme]
+def coverage_by_horizon(by_h: dict[str, dict], theme: str = "dark", model: str = "gru") -> go.Figure:
+    """Cobertura do intervalo p10–p90 por horizonte, contra o alvo de 80%, na cor do modelo."""
+    c = dict(THEMES[theme])
+    c["gru"] = model_style(model, theme)[1]
     fig = go.Figure()
     fig.add_hline(y=80, line=dict(color=c["muted"], width=1, dash="dot"))
     fig.add_annotation(x=10.4, y=80, text="alvo 80%", xanchor="left", showarrow=False, font=dict(color=c["muted"], size=11))
@@ -310,7 +313,65 @@ def driver_forecasts(series: list[dict], xtitle: str, theme: str = "dark") -> go
     return base_layout(fig, 420, theme)
 
 
-def live_forecast(real: pd.DataFrame, pred: pd.DataFrame, title: str, theme: str = "dark") -> go.Figure:
+def stint_projection(real: pd.DataFrame, proj: pd.DataFrame, model: str, origins: list[int], theme: str = "dark") -> go.Figure:
+    """Um stint: tempos de volta reais e a projeção da rede (mediana e faixa p10–p90), com a tendência de cada um.
+
+    real: lap, lap_time, clean, neutralised, pit_in, tyre_life, compound (voltas do stint).
+    proj: lap, time_p10, time_p50, time_p90, segment (cada segmento vira uma linha) e hover.
+    origins: voltas em que as previsões mostradas foram feitas (linhas verticais pontilhadas).
+    """
+    c = THEMES[theme]
+    name, color, _ = model_style(model, theme)
+    fig = go.Figure()
+    for k, (_, seg) in enumerate(proj.sort_values("lap").groupby("segment", sort=False)):
+        seg = seg.sort_values("lap")
+        fig.add_trace(go.Scatter(x=list(seg["lap"]) + list(seg["lap"])[::-1], y=list(seg["time_p90"]) + list(seg["time_p10"])[::-1],
+                                 mode="lines", fill="toself", fillcolor=rgba(color, 0.18), line=dict(width=0), hoverinfo="skip",
+                                 name=f"{name}: faixa p10–p90", legendgroup="band", showlegend=k == 0))
+        fig.add_trace(go.Scatter(x=seg["lap"], y=seg["time_p50"], mode="lines+markers", name=f"{name}: projeção (p50)",
+                                 legendgroup="p50", showlegend=k == 0, line=dict(color=color, width=2.2),
+                                 marker=dict(size=5, color=color), customdata=seg["hover"],
+                                 hovertemplate=f"%{{customdata}}<br>projeção %{{y|{LAP_FORMAT}}}<extra></extra>"))
+    pt = {"SOFT": "macio", "MEDIUM": "médio", "HARD": "duro"}
+    hover = [f"volta {int(l)} · {pt.get(str(cp).upper(), str(cp).lower())} com {int(a) if pd.notna(a) else '?'} voltas" for l, cp, a in
+             zip(real["lap"], real["compound"], real["tyre_life"])]
+    real = real.assign(hover=hover)
+    ok, bad = real[real["clean"] & real["lap_time"].notna()], real[~real["clean"] & real["lap_time"].notna()]
+    fig.add_trace(go.Scatter(x=ok["lap"], y=ok["lap_time"], mode="markers", name="real (volta limpa)",
+                             marker=dict(size=9, color=c["ink"], line=dict(width=1, color=c["surface"])), customdata=ok["hover"],
+                             hovertemplate=f"%{{customdata}}<br>real %{{y|{LAP_FORMAT}}}<extra></extra>"))
+    if len(bad):
+        fig.add_trace(go.Scatter(x=bad["lap"], y=bad["lap_time"], mode="markers", name="real (box, SC ou fora do padrão)",
+                                 marker=dict(size=8, color="rgba(0,0,0,0)", line=dict(width=1.5, color=c["muted"])),
+                                 customdata=bad["hover"], hovertemplate=f"%{{customdata}}<br>real %{{y|{LAP_FORMAT}}} (fora da avaliação)<extra></extra>"))
+    # tendência: reta ajustada nas voltas limpas, a degradação por volta
+    ev = ok.merge(proj.drop_duplicates("lap", keep="last")[["lap", "time_p50"]], on="lap")
+    for col, label, line_color in (("lap_time", "tendência real", c["ink2"]), ("time_p50", f"tendência {name}", color)):
+        d = ev if col == "time_p50" else ok
+        if len(d) >= 4:
+            b, a = np.polyfit(d["lap"], d[col], 1)
+            xs = np.array([d["lap"].min(), d["lap"].max()])
+            fig.add_trace(go.Scatter(x=xs, y=a + b * xs, mode="lines", name=f"{label} ({b:+.3f} s/volta)",
+                                     line=dict(color=line_color, width=1.4, dash="dot"), hoverinfo="skip"))
+    for t in origins:
+        fig.add_vline(x=t + 0.5, line=dict(color=c["muted"], width=1, dash="dot"))
+    if "neutralised" in real:
+        for lap in real.loc[real["neutralised"].fillna(False).astype(bool), "lap"]:
+            fig.add_vrect(x0=lap - 0.5, x1=lap + 0.5, fillcolor=c["shade"], line_width=0)
+    vals = pd.concat([ok["lap_time"], proj["time_p10"], proj["time_p90"]]).dropna()
+    if len(vals):
+        lo, hi = vals.quantile(0.01), vals.quantile(0.99)
+        pad = 0.12 * (hi - lo) + 0.15
+        fig.update_yaxes(range=[lo - pad, hi + pad])
+    fig.update_xaxes(title_text="volta")
+    whole_laps(fig)
+    fig.update_yaxes(title_text="tempo de volta")
+    lap_time_axis(fig)
+    return base_layout(fig, 460, theme)
+
+
+def live_forecast(real: pd.DataFrame, pred: pd.DataFrame, title: str, theme: str = "dark",
+                  model: str = "rede") -> go.Figure:
     """Voltas reais e a previsão mais recente da GRU (mediana e faixa p10–p90) de um piloto, ou de dois para comparar."""
     c = THEMES[theme]
     fig = go.Figure()
@@ -326,9 +387,9 @@ def live_forecast(real: pd.DataFrame, pred: pd.DataFrame, title: str, theme: str
             fig.add_trace(go.Scatter(x=list(p["lap"]) + list(p["lap"])[::-1],
                                      y=list(p["time_p90"]) + list(p["time_p10"])[::-1], mode="lines", fill="toself",
                                      fillcolor=rgba(color, 0.16) if compare else c["band"], line=dict(width=0),
-                                     hoverinfo="skip", name="GRU p10–p90", legendgroup=who, showlegend=not compare))
+                                     hoverinfo="skip", name=f"{model} p10–p90", legendgroup=who, showlegend=not compare))
             fig.add_trace(go.Scatter(x=p["lap"], y=p["time_p50"], mode="lines+markers",
-                                     name=f"{who}GRU v0 (mediana)", legendgroup=who,
+                                     name=f"{who}{model} (mediana)", legendgroup=who,
                                      line=dict(color=color, width=2, dash=dash),
                                      marker=dict(size=6, color=color, symbol=symbol),
                                      hovertemplate=f"{who}previsto: %{{y|{LAP_FORMAT}}}<extra></extra>"))

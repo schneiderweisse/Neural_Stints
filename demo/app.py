@@ -2,7 +2,8 @@
 
 Roda no navegador com stlite (Streamlit em WebAssembly), sem servidor. Tem as mesmas abas do painel
 completo (dashboard/), menos a parte ao vivo: as corridas gravadas, o Replay (corrida pela telemetria e
-duelos previstos pela rede) e o ajuste do modelo (GRU v0 e Tarefas A e B). A leitura do f1-dash durante
+duelos previstos pela rede), os Stints, o modelo ao vivo por dentro (LSTM) e o ajuste do primeiro modelo
+(GRU e Tarefas A e B). A leitura do f1-dash durante
 as sessões e a aba Mapa, que só funciona ao vivo, ficam no painel completo.
 
 No site, este arquivo vira demo_app.py na raiz de app.zip, ao lado de dashboard/, live/, modeling/ e
@@ -18,7 +19,7 @@ import streamlit as st
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from dashboard import layout, live_tab, model_tab, replay_tab, tasks_tab  # noqa: E402
+from dashboard import layout, live_tab, lstm_tab, model_tab, replay_tab, stints_tab, tasks_tab  # noqa: E402
 
 REPO = "https://github.com/schneiderweisse/Neural_Stints"
 
@@ -31,7 +32,9 @@ st.markdown(f"<div class='demo-note'>Demonstração do painel, rodando inteirame
             "Em <b>Corridas gravadas</b>, os GPs de Las Vegas e de São Paulo de 2026, com as previsões que a rede fez ao "
             "vivo a cada volta, e o GP da Alemanha de 2019. Em <b>Replay</b>, a corrida de Las Vegas em time-lapse no mapa, "
             "pela telemetria, acompanhando um piloto, e os duelos que a rede previu, com o que aconteceu de fato. "
-            "<b>GRU v0</b> e <b>Tarefas A e B</b> mostram o ajuste da rede nas corridas de validação e teste de 2026. "
+            "Em <b>Stints</b>, um stint de um piloto (o médio de Verstappen em Las Vegas, por exemplo), com os tempos reais "
+            "e a projeção da rede. <b>LSTM</b> abre o modelo ao vivo: arquitetura, portões, embeddings, treino e "
+            "avaliação. <b>GRU</b> e <b>Tarefas A e B</b> mostram o primeiro modelo nas corridas de validação e teste. "
             f"Relatório da corrida: <a href='{live_tab.RACE_REPORT}'>GP de São Paulo</a>. "
             f"Código e documentação: <a href='{REPO}'>github.com/schneiderweisse/Neural_Stints</a>."
             "</div>", unsafe_allow_html=True)
@@ -39,7 +42,8 @@ st.markdown(f"<div class='demo-note'>Demonstração do painel, rodando inteirame
 # só a seção aberta roda: no navegador, rodar todas a cada clique deixava a demo lenta
 layout.keep_widget_state()
 SECTIONS = {"Corridas gravadas": lambda: live_tab.render(demo=True), "Replay": replay_tab.render,
-            "GRU v0": model_tab.render, "Tarefas A e B": tasks_tab.render}
+            "Stints": stints_tab.render, "LSTM": lstm_tab.render, "GRU": model_tab.render,
+            "Tarefas A e B": tasks_tab.render}
 SECTIONS[layout.section_nav(list(SECTIONS))]()
 
 layout.footer()

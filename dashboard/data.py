@@ -75,6 +75,22 @@ def run_predictions(run_id: str) -> pd.DataFrame:
 
 
 @st.cache_resource(show_spinner=False)
+def session_predictions(session: str) -> pd.DataFrame | None:
+    """Previsões de uma corrida ao vivo: as feitas durante a corrida e, nas origens que faltam (perdidas numa
+    queda do previsor), as refeitas pelo live.predict --once. A coluna `feita` diz qual é qual."""
+    d = LIVE / session
+    if not (d / "predictions.parquet").exists():
+        return None
+    p = pd.read_parquet(d / "predictions.parquet").assign(feita="ao vivo")
+    if (d / "predictions_replay.parquet").exists():
+        rep = pd.read_parquet(d / "predictions_replay.parquet")
+        have = set(zip(p["driver"], p["t"]))
+        rep = rep[[(a, b) not in have for a, b in zip(rep["driver"], rep["t"])]].assign(feita="refeita")
+        p = pd.concat([p, rep], ignore_index=True)
+    return p
+
+
+@st.cache_resource(show_spinner=False)
 def race_laps(race_label: str) -> pd.DataFrame:
     cols = ["race_label", "driver", "team", "lap", "lap_time", "clean", "pit_in", "pit_out", "neutralised", "position",
             "compound", "stint", "tyre_life", "fresh_tyre"]
